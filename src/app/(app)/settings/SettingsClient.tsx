@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Settings, Users, Building2, Sun, Moon, Monitor,
-  Plus, Trash2, Edit2, X, Check, Mail,
+  Plus, Trash2, Edit2, X, Check, Eye, EyeOff,
 } from 'lucide-react'
 import { useTheme } from '@/components/ui/ThemeProvider'
 import { Avatar } from '@/components/layout/Sidebar'
@@ -131,7 +131,7 @@ export function SettingsClient({
       {/* Panel */}
       <div role="tabpanel">
         {activeTab === 'General'     && <GeneralTab currentUser={currentUser} />}
-        {activeTab === 'Team'        && <TeamTab allUsers={allUsers} currentUser={currentUser} isAdmin={isAdmin} />}
+        {activeTab === 'Team'        && <TeamTab allUsers={allUsers} currentUser={currentUser} isAdmin={isAdmin} departments={departments} />}
         {activeTab === 'Departments' && <DepartmentsTab departments={departments} isAdmin={isAdmin} />}
         {activeTab === 'Appearance'  && <AppearanceTab />}
       </div>
@@ -230,48 +230,83 @@ function GeneralTab({ currentUser }: { currentUser: CurrentUser }) {
 
 // ─── Team ─────────────────────────────────────────────────────────────────────
 
+const ALLOWED_DOMAIN = process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN ?? 'duckercreative.com'
+
 function TeamTab({
-  allUsers, currentUser, isAdmin,
+  allUsers: initialUsers, currentUser, isAdmin, departments,
 }: {
   allUsers:    TeamMember[]
   currentUser: CurrentUser
   isAdmin:     boolean
+  departments: Department[]
 }) {
-  const [showInviteModal, setShowInviteModal] = useState(false)
-  const [inviteEmail,     setInviteEmail]     = useState('')
+  const [members,      setMembers]      = useState(initialUsers)
+  const [showModal,    setShowModal]    = useState(false)
+  const [name,         setName]         = useState('')
+  const [email,        setEmail]        = useState('')
+  const [password,     setPassword]     = useState('')
+  const [showPw,       setShowPw]       = useState(false)
+  const [role,         setRole]         = useState('member')
+  const [deptId,       setDeptId]       = useState('')
+  const [saving,       setSaving]       = useState(false)
+  const [formError,    setFormError]    = useState<string | null>(null)
+
+  function openModal() {
+    setName(''); setEmail(''); setPassword(''); setRole('member')
+    setDeptId(''); setFormError(null); setShowPw(false)
+    setShowModal(true)
+  }
+
+  async function handleAdd() {
+    if (!name.trim() || !email.trim() || !password) {
+      setFormError('Name, email and password are required')
+      return
+    }
+    setSaving(true)
+    setFormError(null)
+    try {
+      const res = await fetch('/api/users', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ name, email, password, role, departmentId: deptId || null }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setFormError(data.error ?? 'Failed to add member'); return }
+      setMembers(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
+      setShowModal(false)
+    } catch {
+      setFormError('Network error — try again')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="glass-card" style={{ padding: 28 }}>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-[17px] font-semibold" style={{ color: 'var(--text-primary)' }}>
           Team Members
-          <span
-            className="ml-2 text-[13px] font-normal"
-            style={{ color: 'var(--text-tertiary)' }}
-          >
-            {allUsers.length}
+          <span className="ml-2 text-[13px] font-normal" style={{ color: 'var(--text-tertiary)' }}>
+            {members.length}
           </span>
         </h2>
         {isAdmin && (
           <button
-            onClick={() => setShowInviteModal(true)}
-            className="flex items-center gap-1.5 text-[13px] font-medium px-3 py-1.5 rounded-[9px] transition-all"
-            style={{
-              background: 'var(--color-blue)',
-              color:      '#fff',
-            }}
+            onClick={openModal}
+            className="flex items-center gap-1.5 text-[13px] font-medium px-3 py-1.5 rounded-[9px]"
+            style={{ background: 'var(--color-blue)', color: '#fff' }}
           >
             <Plus size={14} strokeWidth={2} />
-            Invite
+            Add Member
           </button>
         )}
       </div>
 
       <div className="space-y-2">
-        {allUsers.map(u => (
+        {members.map(u => (
           <div
             key={u.id}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-[10px] transition-colors"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-[10px]"
             style={{
               background: u.id === currentUser.id ? 'rgba(0,122,255,0.05)' : 'var(--bg-secondary)',
             }}
@@ -281,60 +316,117 @@ function TeamTab({
               <p className="text-[13px] font-medium truncate" style={{ color: 'var(--text-primary)' }}>
                 {u.name}
                 {u.id === currentUser.id && (
-                  <span className="ml-1.5 text-[10px]" style={{ color: 'var(--color-blue)' }}>
-                    (you)
-                  </span>
+                  <span className="ml-1.5 text-[10px]" style={{ color: 'var(--color-blue)' }}>(you)</span>
                 )}
               </p>
-              <p className="text-[12px] truncate" style={{ color: 'var(--text-tertiary)' }}>
-                {u.email}
-              </p>
+              <p className="text-[12px] truncate" style={{ color: 'var(--text-tertiary)' }}>{u.email}</p>
             </div>
             <RoleBadge role={u.role} />
           </div>
         ))}
       </div>
 
-      {/* Invite modal */}
-      {showInviteModal && (
-        <Modal title="Invite Team Member" onClose={() => setShowInviteModal(false)}>
-          <p className="text-[13px] mb-4" style={{ color: 'var(--text-secondary)' }}>
-            Enter the email address of the person you want to invite.
-            They must have a <strong>@duckercreative.com</strong> address.
-          </p>
-          <Field label="Email Address">
-            <div className="flex items-center gap-2">
+      {/* Add Member modal */}
+      {showModal && (
+        <Modal title="Add Team Member" onClose={() => setShowModal(false)}>
+          <div className="flex flex-col gap-4">
+            <Field label="Full Name">
               <input
-                type="email"
-                placeholder="name@duckercreative.com"
-                value={inviteEmail}
-                onChange={e => setInviteEmail(e.target.value)}
-                className="flex-1 text-[14px] px-3 py-2.5 rounded-[10px]"
+                type="text"
+                placeholder="Jane Smith"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                className="w-full text-[14px] px-3 py-2.5 rounded-[10px]"
                 style={inputStyle}
                 autoFocus
               />
+            </Field>
+
+            <Field label="Email Address">
+              <input
+                type="email"
+                placeholder={`name@${ALLOWED_DOMAIN}`}
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                className="w-full text-[14px] px-3 py-2.5 rounded-[10px]"
+                style={inputStyle}
+              />
+            </Field>
+
+            <Field label="Password">
+              <div className="relative">
+                <input
+                  type={showPw ? 'text' : 'password'}
+                  placeholder="Min. 8 characters"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  className="w-full text-[14px] px-3 py-2.5 rounded-[10px] pr-10"
+                  style={inputStyle}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPw(p => !p)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2"
+                  style={{ color: 'var(--text-tertiary)' }}
+                  tabIndex={-1}
+                >
+                  {showPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+            </Field>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Role">
+                <select
+                  value={role}
+                  onChange={e => setRole(e.target.value)}
+                  className="w-full text-[14px] px-3 py-2.5 rounded-[10px]"
+                  style={inputStyle}
+                >
+                  <option value="admin">Admin</option>
+                  <option value="manager">Manager</option>
+                  <option value="member">Member</option>
+                  <option value="viewer">Viewer</option>
+                </select>
+              </Field>
+
+              <Field label="Department">
+                <select
+                  value={deptId}
+                  onChange={e => setDeptId(e.target.value)}
+                  className="w-full text-[14px] px-3 py-2.5 rounded-[10px]"
+                  style={inputStyle}
+                >
+                  <option value="">None</option>
+                  {departments.map(d => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+              </Field>
             </div>
-          </Field>
-          <div className="flex justify-end gap-2 mt-5">
-            <button
-              onClick={() => setShowInviteModal(false)}
-              className="text-[13px] px-4 py-2 rounded-[9px]"
-              style={{ border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-secondary)' }}
-            >
-              Cancel
-            </button>
-            <button
-              className="flex items-center gap-1.5 text-[13px] font-medium px-4 py-2 rounded-[9px]"
-              style={{ background: 'var(--color-blue)', color: '#fff' }}
-              onClick={() => {
-                // Invite email send is out of scope — form only
-                setShowInviteModal(false)
-                setInviteEmail('')
-              }}
-            >
-              <Mail size={14} strokeWidth={1.5} />
-              Send Invite
-            </button>
+
+            {formError && (
+              <p className="text-[12px]" style={{ color: 'var(--color-red)' }}>{formError}</p>
+            )}
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-[13px] px-4 py-2 rounded-[9px]"
+                style={{ border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-secondary)' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAdd}
+                disabled={saving}
+                className="flex items-center gap-1.5 text-[13px] font-medium px-4 py-2 rounded-[9px]"
+                style={{ background: saving ? 'rgba(0,122,255,0.5)' : 'var(--color-blue)', color: '#fff' }}
+              >
+                <Plus size={14} strokeWidth={2} />
+                {saving ? 'Adding…' : 'Add Member'}
+              </button>
+            </div>
           </div>
         </Modal>
       )}
