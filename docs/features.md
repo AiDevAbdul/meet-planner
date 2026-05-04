@@ -11,7 +11,13 @@ MeetPlanner
 ├── Messaging
 │   ├── Channels (department + custom)
 │   └── Direct Messages
-└── People & Teams
+├── People & Teams
+├── Analytics
+└── Settings
+    ├── General
+    ├── Team (add/manage members)
+    ├── Departments
+    └── Appearance
 ```
 
 ---
@@ -25,13 +31,14 @@ MeetPlanner
 - Left column (60%): My Tasks — kanban-lite (todo / in-progress / done, today's scope)
 - Right column (40%):
   - Recent Meetings (last 3, click to expand)
-  - Triage Queue count (if manager)
   - Team Activity feed (task status changes, last 10)
 
 ### Behavior
-- Stat cards animate count up on load (respect reduced-motion)
-- Activity feed auto-refreshes every 60s (not real-time to avoid noise)
-- "Add Task" quick-action button (top-right of My Tasks)
+- Stat cards animate count up on load
+- My Tasks mini-kanban has quick-action buttons per card:
+  - **Todo** tasks: "Start" button → moves to In Progress
+  - **In Progress** tasks: "Done" button → moves to Done
+  - Optimistic update (UI updates immediately, syncs to API)
 
 ---
 
@@ -40,31 +47,27 @@ MeetPlanner
 ### Sources
 | Source | How | Status |
 |--------|-----|--------|
-| Gmail (meeting notes forwarded/labeled) | Gmail API push watch | Phase 1 |
-| Manual paste | Text area in UI | Phase 1 |
-| File upload (.txt, .docx, .pdf) | Upload → parse → AI | Phase 2 |
-| Google Meet transcript | Meet API | Phase 2 |
+| Gmail (meeting notes forwarded/labeled) | Gmail API push watch | Implemented |
+| Manual paste | Text area in UI | Implemented |
+| File upload (.txt, .docx, .pdf) | Upload → parse → AI | Implemented |
+| Google Meet transcript | Meet API | Planned |
 
 ### Ingestion Flow (UI)
-1. Notification badge appears: "New meeting notes received"
-2. User opens Meetings → sees card in "Processing" state with spinner
-3. AI extraction runs (Claude API) — typically 3–8s
-4. Card transitions to "Extracted" state — shows: summary, decisions, extracted tasks (count)
-5. User clicks → full Meeting Detail view
+1. User clicks "New Meeting" → chooses Paste or Upload tab
+2. AI extraction runs (Claude API, falls back to Gemini) — typically 3–8s
+3. Meeting appears with: title, summary, decisions, extracted tasks
+4. User clicks → full Meeting Detail view
 
 ### Meeting Detail View
 - Header: title, date, source badge, attendees avatars
 - AI Summary block (collapsible)
 - Decisions list
 - Extracted Tasks section → each task has: title, suggested assignee, priority, due date
-  - Each task has [Approve] [Edit] [Reject] actions
-  - Approved → moves to Task Board (status: todo)
-  - Rejected → archived, not visible unless filtered
+  - Tasks start in Triage status, approved via Triage Queue
 
 ### Edge Cases
-- Duplicate detection: if same email content received twice → show warning, don't double-extract
-- No tasks extracted: show "No action items detected" with manual "Add Task" option
-- Extraction failure: show error + "Retry" + "Paste manually" fallback
+- Extraction failure: meeting saved with "Meeting (extraction failed)" title
+- File types supported: .pdf (via pdf-parse), .docx (via mammoth), .txt
 
 ---
 
@@ -81,26 +84,26 @@ MeetPlanner
 
 ### Task Card
 - **Left accent**: 3px border in priority color
-- **Content**: title (headline), assignee avatar, due date badge, priority chip, department tag
-- **Hover**: drag handle visible, subtle shadow lift (`translateY(-2px)`)
-- **Click**: opens Task Detail slide-over panel (not a new page)
+- **Content**: title, assignee avatar, due date badge, priority chip
+- **Hover**: drag handle visible, subtle shadow lift
+- **Click**: opens Task Detail slide-over panel
+
+### Quick-Action Status Buttons (Assignee Only)
+- Shown only when `task.assigneeId === currentUserId`
+- **Todo** tasks: "Start Task" button (orange) → in_progress
+- **In Progress** tasks: "Mark Done" button (green) → done
+- Optimistic UI update + PATCH to `/api/tasks/:id`
 
 ### Task Detail Slide-over
-- Slides in from right (350px wide on desktop, full-screen on mobile)
-- Editable fields: title, description (rich text), assignee, priority, due date, department
-- Activity log at bottom: status changes, comments
-- Comment input at very bottom
+- Editable fields: title, description, assignee, priority, status, due date
+- Comments section with user avatars and timestamps
+- Activity log: status changes
 - "Source Meeting" link if task came from a meeting
-- Delete (destructive, red, confirmation dialog)
+- Delete with confirmation
 
 ### Filters
-- By: Assignee | Priority | Department | Due Date range | My Tasks toggle
-- Filters persist in URL query params (deep-link shareable)
-
-### Views
-- Kanban (default)
-- List view (table, sortable columns)
-- Timeline / Gantt (Phase 2)
+- By: Assignee | Priority | Department | Status
+- Filters persist in URL query params
 
 ---
 
@@ -111,141 +114,147 @@ MeetPlanner
 **Purpose**: Review AI-extracted tasks before they reach the team.
 
 ### Layout
-- Dedicated page (accessible from sidebar + notification badge)
-- List of pending tasks grouped by meeting
-- Each task: title, AI-suggested assignee, priority, due date → [Approve] [Edit & Approve] [Reject]
-- Bulk actions: "Approve All from this meeting"
-- Empty state: "All caught up" illustration
-
-### Edit & Approve Modal
-- Inline form: edit title, reassign, change priority, set due date
-- "Approve" button saves and creates the task
+- List of pending tasks grouped by source meeting
+- Each task: title, AI-suggested assignee, priority, due date → [Approve] [Edit] [Reject]
+- Empty state: "All caught up"
 
 ---
 
 ## 5. Messaging
 
-### Channel List (Sidebar panel)
-- Sections: Departments (auto-created per dept) | Custom Channels | Direct Messages
-- Unread indicator: bold name + count badge
-- "+" button to create new channel or DM
-- Active channel: highlighted in blue (sidebar active state)
+### Channel List (Sidebar)
+- Sections: public channels, private channels, direct messages
+- Unread indicator: count badge
+- "+" button to create channel or DM
 
 ### Channel View
-- Top bar: channel name, member count, description, search icon
-- Message list: infinite scroll upward (load older messages)
-- Message grouping: consecutive messages from same user grouped (no repeated avatar/name)
+- Infinite scroll upward (load older messages)
+- Message grouping: consecutive messages from same user grouped
 - Date separators between days
-- Own messages: right-aligned, blue bubble
-- Others: left-aligned, glass bubble with avatar
+- Own messages: right-aligned blue bubble
+- Others: left-aligned glass bubble with avatar
 
 ### Message Actions (hover toolbar)
-- React (emoji picker, limited to 6 common reactions)
-- Reply (opens thread)
-- Flag as Idea (📌) — triggers AI idea extraction
+- React (emoji — UI only, not persisted)
+- Reply (UI only)
+- **Flag as Idea** — marks message as flagged, shows bookmark indicator on bubble
+- **Create Task** — sends message content to Claude, creates a task at Triage status, marks message as flagged
 - Copy text
 - Delete (own messages only)
 
-### Idea Flagging Flow
-1. User hovers → clicks 📌 "Flag as Idea"
-2. Message gets 📌 indicator
-3. Manager sees notification: "New idea flagged in #channel"
-4. Manager opens Triage → sees draft task extracted from message thread
-5. Approve / Edit / Reject
-
-### Thread View
-- Opens as a right panel (similar to Slack threads)
-- Shows original message + replies
-- "Back to channel" link at top
+### Chat → Task Flow
+1. User hovers a message → clicks "Create Task" (list icon)
+2. Button shows spinner while Claude extracts title + priority from the message text
+3. On success: button flashes green checkmark, message gets "Flagged idea" badge
+4. Task appears in Triage Queue for manager review
 
 ### Direct Messages
-- One-to-one or small group (up to 8 people)
+- One-to-one via direct channels
 - Same message UI as channels
-- No idea flagging in DMs
 
 ### Notifications
-- In-app notification bell (top bar)
-- Email digest (daily, configurable)
-- Browser push notifications (opt-in)
-- Mention (@name) triggers notification to that person
+- In-app notification bell (top bar) — panel shows Today / Earlier groups
+- Mark all read
 
 ---
 
 ## 6. People & Teams
 
 ### People Page
-- Grid of team member cards (avatar, name, role, department, task count)
+- Grid of team member cards (avatar, name, role, department, active task count, completion bar)
 - Filter by department
-- Click → Person Profile
 
 ### Person Profile
-- Avatar (large), name, role, department, email
-- Active tasks (kanban mini view)
-- Completed tasks count (this month)
+- Avatar, name, role, department, email
+- Active tasks list (up to 5)
+- Completed tasks count this month
 - Member of channels list
 - Admin-only: edit role, department
 
-### Departments Page
-- Admin only
-- List of departments with member count, task count
-- Create / Edit / Delete department
-- Each dept auto-creates a messaging channel
+---
+
+## 7. Analytics
+
+**Who sees it**: All authenticated users.
+
+### Metrics Displayed
+- Total tasks / Completed tasks / Overdue tasks / Meetings this month
+- Task status breakdown (bar chart — triage → done)
+- Priority breakdown (critical / high / normal / low)
+- Assignee workload (tasks per person, completion rate bar)
 
 ---
 
-## 7. Notifications
+## 8. Search & Command Palette
+
+- **Trigger**: Search button in top bar or `⌘K` / `Ctrl+K`
+- **Searches**: Tasks, Meetings, People — debounced at 220ms
+- **AI mode**: Questions (detected by phrasing) route to Claude via `/api/ai/chat`
+- **Keyboard nav**: Arrow keys + Enter to select, Escape to close
+
+---
+
+## 9. Notifications
 
 ### Trigger Events
 | Event | Recipients | Channel |
 |-------|-----------|---------|
-| Task assigned to me | Assignee | In-app + email |
-| Task due tomorrow | Assignee | In-app + email |
-| Task overdue | Assignee + Manager | In-app + email |
+| Task assigned to me | Assignee | In-app |
+| Task due tomorrow | Assignee | In-app |
+| Task overdue | Assignee + Manager | In-app |
 | Meeting notes processed | Meeting creator | In-app |
 | Idea flagged in channel | Channel managers | In-app |
-| @mention in message | Mentioned user | In-app + email |
+| @mention in message | Mentioned user | In-app |
 | Idea approved → task created | Idea flagger | In-app |
 
 ### Notification Center
 - Slide-over from notification bell (top bar)
 - Groups: Today | Earlier
 - Mark all read button
-- Click → navigate to source (task, meeting, channel)
-- Auto-mark as read when navigating to source
 
 ---
 
-## 8. Settings (Admin)
+## 10. Settings
 
 ### Sections
-- **General**: Company name, logo, timezone
-- **Team**: Invite members (email), manage roles
-- **Departments**: CRUD departments, assign members
-- **Integrations**: Connect Google Workspace, Gmail API status
-- **Notifications**: Configure email digest frequency
+- **General**: Company name, timezone, your account info
+- **Team**: Add members directly (admin only), view all members with roles
+- **Departments**: Create / Edit / Delete departments with color coding
 - **Appearance**: Light / Dark / System theme toggle
+
+### Add Team Member (Admin Only)
+- Form fields: Full Name, Email, Password (show/hide), Role, Department
+- Creates account immediately — member can sign in with credentials
+- Email must match `ALLOWED_EMAIL_DOMAIN` (default: `duckercreative.com`)
+- Role options: Admin | Manager | Member | Viewer
 
 ---
 
 ## Phase Roadmap
 
-### Phase 1 (MVP)
-- [ ] Google OAuth + team onboarding
-- [ ] Dashboard (basic)
-- [ ] Manual meeting note paste + AI extraction
-- [ ] Gmail webhook ingestion
-- [ ] Triage Queue
-- [ ] Task Board (kanban) with detail slide-over
-- [ ] Basic messaging (channels + DMs)
-- [ ] People & Teams (view only)
-- [ ] In-app notifications
+### Phase 1 (MVP) ✅
+- [x] Google OAuth + credentials auth
+- [x] Dashboard with stat cards + My Tasks mini-kanban
+- [x] Manual meeting note paste + AI extraction (Claude + Gemini fallback)
+- [x] Gmail webhook ingestion
+- [x] Triage Queue (admin/manager)
+- [x] Task Board (kanban, drag-and-drop)
+- [x] Task detail slide-over with comments
+- [x] Messaging (channels + DMs, Supabase Realtime)
+- [x] People & Teams with profiles
+- [x] In-app notifications center
 
-### Phase 2
+### Phase 2 ✅
+- [x] File upload (.pdf, .docx, .txt) meeting ingestion
+- [x] Chat → Task AI conversion
+- [x] Task quick-action buttons for assignees
+- [x] Analytics dashboard
+- [x] Global search + AI command palette
+- [x] Admin team member creation in Settings
+
+### Planned
 - [ ] Google Meet transcript ingestion
-- [ ] File upload (.pdf, .docx) ingestion
 - [ ] Timeline / Gantt view
-- [ ] Task comments + @mentions in tasks
 - [ ] Message threads
 - [ ] Email digest notifications
-- [ ] Analytics dashboard (task completion rates, meeting frequency)
 - [ ] Mobile responsive (PWA)

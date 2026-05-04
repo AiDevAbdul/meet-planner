@@ -3,19 +3,20 @@
 ## Overview
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                   NEXT.JS APP                        │
-│  ┌──────────┐  ┌──────────┐  ┌────────────────────┐ │
-│  │Dashboard │  │Task Board│  │ Messaging (RT)      │ │
-│  │Meeting   │  │Kanban    │  │ Channels/DMs        │ │
-│  │Notes     │  │Timeline  │  │                     │ │
-│  └──────────┘  └──────────┘  └────────────────────┘ │
-│         │              │               │             │
-│  ┌──────────────────────────────────────────────┐   │
-│  │            Next.js API Routes                │   │
-│  │  /api/meetings  /api/tasks  /api/messages    │   │
-│  └──────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                        NEXT.JS APP                           │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────────┐  │
+│  │Dashboard │  │Task Board│  │Messaging │  │Analytics   │  │
+│  │Meetings  │  │Kanban    │  │Channels  │  │Search      │  │
+│  │Triage    │  │Detail    │  │DMs       │  │Settings    │  │
+│  └──────────┘  └──────────┘  └──────────┘  └────────────┘  │
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │                  Next.js API Routes                   │   │
+│  │  /api/tasks  /api/meetings  /api/messages  /api/users │   │
+│  │  /api/search  /api/ai/chat  /api/notifications        │   │
+│  └──────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
           │              │               │
    ┌──────▼──┐    ┌──────▼──┐    ┌──────▼──────┐
    │  Claude  │    │  Neon   │    │  Supabase   │
@@ -25,7 +26,7 @@
           │
    ┌──────▼──────────────────┐
    │  Gmail API (push watch) │
-   │  Google Meet Transcripts│
+   │  Gemini API (fallback)  │
    └─────────────────────────┘
 ```
 
@@ -38,13 +39,12 @@ Gmail receives meeting notes
          │
          ▼
 Gmail API push notification → /api/webhooks/gmail
+         │           OR
+User pastes notes / uploads file → /api/meetings or /api/meetings/upload
          │
          ▼
-Fetch email body / attachment
-         │
-         ▼
-Claude API: structured extraction
-  Input:  raw meeting text
+Claude API (falls back to Gemini): structured extraction
+  Input:  raw meeting text + team roster
   Output: {
     title, summary, date,
     tasks: [{ title, assignee_name, priority, due_date, description }],
@@ -53,30 +53,36 @@ Claude API: structured extraction
   }
          │
          ▼
+Tasks inserted with status = 'triage'
+         │
+         ▼
 Triage Queue (manager review — approve/edit/reject per task)
          │
          ▼
-Insert to DB → notify assignees
+Task status → 'todo' → notify assignees
 ```
 
-## Data Flow: Chat → Ideas → Tasks
+## Data Flow: Chat → Task
 
 ```
 Team member sends message in channel
          │
          ▼
-Message stored in Supabase (real-time broadcast to channel members)
+Message stored in DB + broadcast via Supabase Realtime
          │
-         ▼ (when message flagged with /idea or 📌 reaction)
-Claude API: idea → draft task extraction
-  Input:  flagged message thread
-  Output: draft task (title, priority, owner suggestion, notes)
+         ▼ (user clicks "Create Task" on message hover toolbar)
+POST /api/messages/:id/create-task
          │
          ▼
-Manager receives draft in Triage Queue → approve/edit/reject
+Claude API: extract task from message text
+  Input:  message content
+  Output: { title, priority, description }
          │
          ▼
-Task created → assignee notified
+Task inserted (status = 'triage') + message flagged
+         │
+         ▼
+Task appears in Triage Queue
 ```
 
 ---
@@ -88,7 +94,8 @@ Task created → assignee notified
 id            UUID PRIMARY KEY
 name          TEXT NOT NULL
 email         TEXT UNIQUE NOT NULL
-role          ENUM('admin', 'manager', 'member', 'viewer')
+password_hash TEXT                          -- for credentials auth
+role          ENUM('admin','manager','member','viewer') DEFAULT 'member'
 department_id UUID REFERENCES departments(id)
 avatar_url    TEXT
 google_id     TEXT UNIQUE
@@ -100,7 +107,7 @@ created_at    TIMESTAMPTZ DEFAULT now()
 id         UUID PRIMARY KEY
 name       TEXT NOT NULL
 slug       TEXT UNIQUE NOT NULL
-color      TEXT        -- hex, for channel theming
+color      TEXT
 created_at TIMESTAMPTZ DEFAULT now()
 ```
 
@@ -108,11 +115,11 @@ created_at TIMESTAMPTZ DEFAULT now()
 ```sql
 id           UUID PRIMARY KEY
 title        TEXT NOT NULL
-source       ENUM('gmail', 'manual', 'google_meet')
-raw_content  TEXT        -- original transcript/notes
-summary      TEXT        -- AI-generated summary
-decisions    JSONB       -- array of decision strings
-attendees    JSONB       -- array of {name, email}
+source       ENUM('gmail','manual','google_meet')
+raw_content  TEXT
+summary      TEXT
+decisions    JSONB       -- string[]
+attendees    JSONB       -- {name, email}[]
 date         DATE
 created_by   UUID REFERENCES users(id)
 created_at   TIMESTAMPTZ DEFAULT now()
@@ -120,19 +127,29 @@ created_at   TIMESTAMPTZ DEFAULT now()
 
 ### tasks
 ```sql
-id           UUID PRIMARY KEY
-title        TEXT NOT NULL
-description  TEXT
-priority     ENUM('critical', 'high', 'normal', 'low') DEFAULT 'normal'
-status       ENUM('triage', 'todo', 'in_progress', 'review', 'done') DEFAULT 'triage'
-assignee_id  UUID REFERENCES users(id)
-created_by   UUID REFERENCES users(id)
-meeting_id   UUID REFERENCES meetings(id)    -- NULL if from chat
+id            UUID PRIMARY KEY
+title         TEXT NOT NULL
+description   TEXT
+priority      ENUM('critical','high','normal','low') DEFAULT 'normal'
+status        ENUM('triage','todo','in_progress','review','done') DEFAULT 'triage'
+assignee_id   UUID REFERENCES users(id)
+created_by    UUID REFERENCES users(id)
+meeting_id    UUID REFERENCES meetings(id)   -- NULL if created manually/from chat
 department_id UUID REFERENCES departments(id)
-due_date     DATE
-position     INTEGER   -- for kanban ordering
-created_at   TIMESTAMPTZ DEFAULT now()
-updated_at   TIMESTAMPTZ DEFAULT now()
+due_date      DATE
+position      INTEGER DEFAULT 0              -- kanban column order
+created_at    TIMESTAMPTZ DEFAULT now()
+updated_at    TIMESTAMPTZ DEFAULT now()
+```
+
+### task_comments
+```sql
+id         UUID PRIMARY KEY
+task_id    UUID REFERENCES tasks(id) ON DELETE CASCADE
+user_id    UUID REFERENCES users(id)
+content    TEXT NOT NULL
+created_at TIMESTAMPTZ DEFAULT now()
+edited_at  TIMESTAMPTZ
 ```
 
 ### channels
@@ -140,8 +157,8 @@ updated_at   TIMESTAMPTZ DEFAULT now()
 id            UUID PRIMARY KEY
 name          TEXT NOT NULL
 slug          TEXT UNIQUE NOT NULL
-department_id UUID REFERENCES departments(id)  -- NULL = cross-dept
-type          ENUM('public', 'private', 'direct')
+department_id UUID REFERENCES departments(id)
+type          ENUM('public','private','direct')
 created_by    UUID REFERENCES users(id)
 created_at    TIMESTAMPTZ DEFAULT now()
 ```
@@ -150,7 +167,7 @@ created_at    TIMESTAMPTZ DEFAULT now()
 ```sql
 channel_id UUID REFERENCES channels(id)
 user_id    UUID REFERENCES users(id)
-role       ENUM('owner', 'member') DEFAULT 'member'
+role       ENUM('owner','member') DEFAULT 'member'
 joined_at  TIMESTAMPTZ DEFAULT now()
 PRIMARY KEY (channel_id, user_id)
 ```
@@ -161,8 +178,8 @@ id         UUID PRIMARY KEY
 channel_id UUID REFERENCES channels(id)
 user_id    UUID REFERENCES users(id)
 content    TEXT NOT NULL
-reply_to   UUID REFERENCES messages(id)   -- NULL = top-level
-flagged    BOOLEAN DEFAULT false           -- flagged as idea
+reply_to   UUID REFERENCES messages(id)
+flagged    BOOLEAN DEFAULT false           -- flagged as idea or converted to task
 created_at TIMESTAMPTZ DEFAULT now()
 edited_at  TIMESTAMPTZ
 ```
@@ -171,8 +188,9 @@ edited_at  TIMESTAMPTZ
 ```sql
 id         UUID PRIMARY KEY
 user_id    UUID REFERENCES users(id)
-type       ENUM('task_assigned','task_due','mention','idea_approved')
-payload    JSONB    -- { task_id, message_id, etc. }
+type       ENUM('task_assigned','task_due','task_overdue','mention',
+                'idea_flagged','idea_approved','meeting_processed')
+payload    JSONB    -- { task_id, message_id, meeting_id, etc. }
 read       BOOLEAN DEFAULT false
 created_at TIMESTAMPTZ DEFAULT now()
 ```
@@ -181,92 +199,140 @@ created_at TIMESTAMPTZ DEFAULT now()
 
 ## API Routes
 
-### Meeting Ingestion
+### Meetings
 | Method | Route | Description |
 |--------|-------|-------------|
 | POST | `/api/webhooks/gmail` | Gmail push notification receiver |
-| POST | `/api/meetings` | Manual meeting note submission |
 | GET | `/api/meetings` | List meetings (paginated) |
-| GET | `/api/meetings/:id` | Single meeting with extracted tasks |
+| POST | `/api/meetings` | Create meeting from pasted notes |
+| GET | `/api/meetings/:id` | Single meeting with tasks |
+| PATCH | `/api/meetings/:id` | Update meeting |
+| POST | `/api/meetings/upload` | Create meeting from uploaded file (.pdf/.docx/.txt) |
 
 ### Tasks
 | Method | Route | Description |
 |--------|-------|-------------|
-| GET | `/api/tasks` | List tasks (filters: status, assignee, priority) |
+| GET | `/api/tasks` | List tasks (filters: status, assigneeId, priority, departmentId) |
 | POST | `/api/tasks` | Create task manually |
-| PATCH | `/api/tasks/:id` | Update task (status, assignee, etc.) |
+| PATCH | `/api/tasks/:id` | Update task (status, assignee, priority, etc.) |
 | DELETE | `/api/tasks/:id` | Delete task |
-| POST | `/api/tasks/:id/approve` | Approve from triage queue |
+| POST | `/api/tasks/:id/approve` | Approve task from triage (sets status → todo) |
+| GET | `/api/tasks/:id/comments` | List comments for a task |
+| POST | `/api/tasks/:id/comments` | Add comment to a task |
 
 ### Messaging
 | Method | Route | Description |
 |--------|-------|-------------|
 | GET | `/api/channels` | List channels user belongs to |
 | POST | `/api/channels` | Create channel |
-| GET | `/api/channels/:id/messages` | Paginated message history |
+| GET | `/api/channels/:id/messages` | Paginated message history (cursor-based) |
 | POST | `/api/channels/:id/messages` | Send message |
+| DELETE | `/api/messages/:id` | Delete own message |
 | PATCH | `/api/messages/:id/flag` | Flag message as idea |
+| POST | `/api/messages/:id/create-task` | AI-extract task from message, create at triage |
 
 ### People
 | Method | Route | Description |
 |--------|-------|-------------|
-| GET | `/api/users` | List team members |
-| GET | `/api/users/:id` | User profile + task summary |
+| GET | `/api/users` | List team members (with dept + task counts) |
+| POST | `/api/users` | Create team member (admin only) |
+| GET | `/api/users/:id` | User profile |
+| PATCH | `/api/users/:id` | Update user role/department (admin only) |
+| GET | `/api/users/search` | Search users by name/email |
+| POST | `/api/auth/register` | Self-registration (public, domain-restricted) |
+
+### Departments
+| Method | Route | Description |
+|--------|-------|-------------|
 | GET | `/api/departments` | List departments |
+| POST | `/api/departments` | Create department (admin) |
+| PATCH | `/api/departments/:id` | Update department (admin) |
+| DELETE | `/api/departments/:id` | Delete department (admin) |
+
+### Search & AI
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | `/api/search?q=` | Full-text search across tasks, meetings, users |
+| POST | `/api/ai/chat` | Conversational AI over tasks + meetings data |
+
+### Notifications
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET | `/api/notifications` | List notifications for current user |
+| POST | `/api/notifications/read-all` | Mark all notifications as read |
 
 ---
 
-## Authentication Flow
+## Authentication
 
-1. User visits app → redirected to Google OAuth
-2. Server validates with Google Workspace (domain restriction)
-3. Session created (NextAuth.js) → user record upserted in DB
-4. Access token stored server-side for Gmail API calls (with user consent)
+### Providers
+1. **Google OAuth** — Google Workspace sign-in (optional, requires `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`)
+2. **Credentials** — Email + bcrypt password (always available)
 
-**Domain restriction**: Only `@duckercreative.com` emails (configurable via env `ALLOWED_EMAIL_DOMAIN`)
+### Flow
+1. User visits app → middleware checks JWT session
+2. If no session → redirect to `/login`
+3. Sign in via Google or email/password
+4. NextAuth v5 issues signed JWT (`AUTH_SECRET` required)
+5. Session carried via HTTP-only cookie
+
+### Domain Restriction
+Only `@duckercreative.com` emails allowed (configurable via `ALLOWED_EMAIL_DOMAIN`).
+Applied in both Google OAuth `signIn` callback and credentials `authorize`.
+
+### Admin Member Creation
+Admins can create accounts directly from Settings → Team, bypassing self-registration.
+Uses `POST /api/users` (admin-only) which sets any role and department.
 
 ---
 
-## AI Integration (Claude API)
+## AI Integration
 
-### Meeting Extraction Prompt Strategy
-- System prompt defines output JSON schema strictly
-- Include team roster (names + roles) so Claude can match assignees
-- Temperature: 0 (deterministic output)
-- Model: `claude-sonnet-4-6` (balance of speed + quality)
-- Enable prompt caching on system prompt (roster rarely changes)
+### Meeting Extraction
+- Primary: Claude (`claude-sonnet-4-6`), temperature 0
+- Fallback: Gemini (`gemini-2.5-flash`) if `ANTHROPIC_API_KEY` not set
+- System prompt cached (prompt caching) — includes team roster for assignee matching
+- Output: structured JSON with title, summary, decisions, attendees, tasks[]
 
-### Idea Extraction from Chat
-- Only triggered on flagged messages (user-initiated, not automatic)
-- Context window: flagged message + 10 messages of thread context
-- Output: single draft task — not multi-task (prevents hallucination)
+### Chat → Task Extraction
+- Claude only, lightweight prompt (512 max tokens)
+- Input: single message content
+- Output: `{ title, priority, description }`
+- Task created at `triage` status for manager review
+
+### AI Chat (Command Palette)
+- Claude with context: current tasks list + recent meetings + team members
+- Used for natural language queries ("Who has the most tasks?", "What was decided in Friday's meeting?")
 
 ---
 
 ## Environment Variables
 
 ```bash
-# App
-NEXTAUTH_SECRET=
-NEXTAUTH_URL=
-
-# Google
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-GOOGLE_REFRESH_TOKEN=          # for Gmail API server-side calls
+# Auth (required)
+AUTH_SECRET=                       # random base64 string — sign JWTs
 ALLOWED_EMAIL_DOMAIN=duckercreative.com
 
-# AI
-ANTHROPIC_API_KEY=
+# Google OAuth (optional — credentials auth works without these)
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REFRESH_TOKEN=              # for Gmail API server-side calls
+
+# AI (at least one required for meeting extraction)
+ANTHROPIC_API_KEY=                 # preferred
+GEMINI_API_KEY=                    # fallback
 
 # Database
-DATABASE_URL=                  # Neon Postgres connection string
+DATABASE_URL=                      # Neon Postgres connection string
 
-# Real-time
+# Real-time messaging
 NEXT_PUBLIC_SUPABASE_URL=
-SUPABASE_SERVICE_ROLE_KEY=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
 
 # Gmail webhook
-GMAIL_WEBHOOK_SECRET=          # for verifying push notifications
+GMAIL_WEBHOOK_SECRET=
 ```
+
+> **Vercel note**: Do NOT set `NEXTAUTH_URL` — `trustHost: true` is configured in `auth.ts`
+> so Next.js auto-detects the deployment URL from request headers.
