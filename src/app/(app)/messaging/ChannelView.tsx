@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import {
   Search, Users, Smile, Reply, Bookmark, Copy, Trash2,
-  Loader2, AlertCircle, ListTodo, Check,
+  Loader2, AlertCircle, ListTodo, Check, X,
 } from 'lucide-react'
 import { Avatar } from '@/components/layout/Sidebar'
 import { MessageInput } from './MessageInput'
@@ -47,10 +47,9 @@ export function ChannelView({ channel, currentUserId }: Props) {
     updateMessage,
   } = useRealtimeMessages(channel.id)
 
-  // Track which messages are currently being converted to tasks
   const [creatingTask, setCreatingTask] = useState<Set<string>>(new Set())
-  // Track which messages just had a task created (for success flash)
   const [taskCreated, setTaskCreated] = useState<Set<string>>(new Set())
+  const [taskError, setTaskError] = useState<Set<string>>(new Set())
 
   const scrollAreaRef    = useRef<HTMLDivElement>(null)
   const bottomRef        = useRef<HTMLDivElement>(null)
@@ -152,9 +151,20 @@ export function ChannelView({ channel, currentUserId }: Props) {
         setTimeout(() => {
           setTaskCreated(prev => { const next = new Set(prev); next.delete(messageId); return next })
         }, 2500)
+      } else {
+        setTaskError(prev => new Set(prev).add(messageId))
+        setTimeout(() => {
+          setTaskError(prev => { const next = new Set(prev); next.delete(messageId); return next })
+        }, 2500)
       }
-    } catch {}
-    setCreatingTask(prev => { const next = new Set(prev); next.delete(messageId); return next })
+    } catch {
+      setTaskError(prev => new Set(prev).add(messageId))
+      setTimeout(() => {
+        setTaskError(prev => { const next = new Set(prev); next.delete(messageId); return next })
+      }, 2500)
+    } finally {
+      setCreatingTask(prev => { const next = new Set(prev); next.delete(messageId); return next })
+    }
   }
 
   // Group messages: consecutive from same user within 5 minutes → grouped
@@ -263,6 +273,7 @@ export function ChannelView({ channel, currentUserId }: Props) {
                 onCreateTask={() => handleCreateTask(msg.id)}
                 isCreatingTask={creatingTask.has(msg.id)}
                 taskJustCreated={taskCreated.has(msg.id)}
+                taskFailed={taskError.has(msg.id)}
               />
             </div>
           )
@@ -307,9 +318,10 @@ type BubbleProps = {
   onCreateTask: () => void
   isCreatingTask: boolean
   taskJustCreated: boolean
+  taskFailed: boolean
 }
 
-function MessageBubble({ message, isOwn, isGrouped, onFlag, onCopy, onDelete, onCreateTask, isCreatingTask, taskJustCreated }: BubbleProps) {
+function MessageBubble({ message, isOwn, isGrouped, onFlag, onCopy, onDelete, onCreateTask, isCreatingTask, taskJustCreated, taskFailed }: BubbleProps) {
   const showHeader = !isGrouped
 
   return (
@@ -440,11 +452,19 @@ function MessageBubble({ message, isOwn, isGrouped, onFlag, onCopy, onDelete, on
                   ? <Loader2 size={13} strokeWidth={1.5} className="animate-spin" />
                   : taskJustCreated
                     ? <Check size={13} strokeWidth={2} />
-                    : <ListTodo size={13} strokeWidth={1.5} />
+                    : taskFailed
+                      ? <X size={13} strokeWidth={2} />
+                      : <ListTodo size={13} strokeWidth={1.5} />
               }
-              label={taskJustCreated ? 'Task created!' : isCreatingTask ? 'Creating task…' : 'Create task'}
+              label={
+                isCreatingTask ? 'Creating task…' :
+                taskJustCreated ? 'Task created!' :
+                taskFailed ? 'Failed — try again' :
+                'Create task'
+              }
               onClick={onCreateTask}
               active={taskJustCreated}
+              error={taskFailed}
             />
             <ToolbarButton
               icon={<Copy size={13} strokeWidth={1.5} />}
@@ -472,12 +492,14 @@ function ToolbarButton({
   onClick,
   active,
   danger,
+  error,
 }: {
   icon: React.ReactNode
   label: string
   onClick: () => void
   active?: boolean
   danger?: boolean
+  error?: boolean
 }) {
   return (
     <button
@@ -488,13 +510,15 @@ function ToolbarButton({
       style={{
         background: active
           ? 'rgba(0,122,255,0.12)'
-          : danger
-            ? 'rgba(255,59,48,0.08)'
-            : 'var(--bg-secondary)',
+          : error
+            ? 'rgba(255,59,48,0.10)'
+            : danger
+              ? 'rgba(255,59,48,0.08)'
+              : 'var(--bg-secondary)',
         border: '1px solid var(--border)',
         color:  active
           ? 'var(--color-blue)'
-          : danger
+          : error || danger
             ? 'var(--color-red)'
             : 'var(--text-secondary)',
       }}

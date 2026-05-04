@@ -69,7 +69,14 @@ export async function POST(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const extracted = await extractTaskFromMessage(message.content)
+  const extracted = await extractTaskFromMessage(message.content).catch((err: unknown) => {
+    console.error('[create-task] AI extraction failed:', err)
+    return null
+  })
+
+  if (!extracted) {
+    return NextResponse.json({ error: 'AI extraction failed' }, { status: 500 })
+  }
 
   const [task] = await db
     .insert(tasks)
@@ -83,7 +90,6 @@ export async function POST(
     })
     .returning()
 
-  // Flag the message so it shows as processed
   await db
     .update(messages)
     .set({ flagged: true })
