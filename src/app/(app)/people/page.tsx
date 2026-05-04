@@ -1,4 +1,5 @@
 import { auth } from '@/lib/auth'
+import { redirect } from 'next/navigation'
 import { db } from '@/lib/db'
 import { users, departments, tasks } from '@/lib/db/schema'
 import { eq, count, sql } from 'drizzle-orm'
@@ -8,7 +9,8 @@ export const dynamic = 'force-dynamic'
 
 export default async function PeoplePage() {
   const session = await auth()
-  const currentUserId = session!.user.id
+  if (!session?.user?.id) redirect('/login')
+  const currentUserId = session.user.id
 
   // Task counts per user (active and total)
   const activeTaskCounts = db

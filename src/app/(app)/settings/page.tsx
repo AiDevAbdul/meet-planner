@@ -1,4 +1,5 @@
 import { auth } from '@/lib/auth'
+import { redirect } from 'next/navigation'
 import { db } from '@/lib/db'
 import { users, departments } from '@/lib/db/schema'
 import { eq, count, sql } from 'drizzle-orm'
@@ -8,7 +9,8 @@ export const dynamic = 'force-dynamic'
 
 export default async function SettingsPage() {
   const session = await auth()
-  const currentUserId = session!.user.id
+  if (!session?.user?.id) redirect('/login')
+  const currentUserId = session.user.id
 
   const [currentUser] = await db
     .select({ id: users.id, name: users.name, email: users.email, role: users.role, avatarUrl: users.avatarUrl, departmentId: users.departmentId })

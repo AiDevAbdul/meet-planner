@@ -10,6 +10,7 @@ import { accounts, sessions, users, verificationTokens } from '@/lib/db/schema'
 const ALLOWED_DOMAIN = process.env.ALLOWED_EMAIL_DOMAIN ?? 'duckercreative.com'
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
   adapter: DrizzleAdapter(db, {
     usersTable:              users,
     accountsTable:           accounts,

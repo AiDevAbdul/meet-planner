@@ -1,4 +1,5 @@
 import { auth } from '@/lib/auth'
+import { redirect } from 'next/navigation'
 import { db } from '@/lib/db'
 import { users, departments, tasks, channelMembers, channels } from '@/lib/db/schema'
 import { eq, and, count, ne, sql } from 'drizzle-orm'
@@ -14,7 +15,8 @@ export default async function PersonPage({
 }) {
   const { id } = await params
   const session = await auth()
-  const currentUserId = session!.user.id
+  if (!session?.user?.id) redirect('/login')
+  const currentUserId = session.user.id
 
   // Current user's role (for admin controls)
   const [currentUserRow] = await db
