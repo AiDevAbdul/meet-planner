@@ -50,6 +50,9 @@ export function ChannelView({ channel, currentUserId }: Props) {
   const [creatingTask, setCreatingTask] = useState<Set<string>>(new Set())
   const [taskCreated, setTaskCreated] = useState<Set<string>>(new Set())
   const [taskError, setTaskError] = useState<Set<string>>(new Set())
+  // AI-classified actionable message IDs (only these show "Create task")
+  const [actionable, setActionable] = useState<Record<string, boolean>>({})
+  const classifiedRef = useRef<Set<string>>(new Set())
 
   const scrollAreaRef    = useRef<HTMLDivElement>(null)
   const bottomRef        = useRef<HTMLDivElement>(null)
@@ -114,6 +117,39 @@ export function ChannelView({ channel, currentUserId }: Props) {
     observer.observe(sentinel)
     return () => observer.disconnect()
   }, [hasMore, loading, loadMore])
+
+  // Classify new messages for actionability — batch call per new page/realtime arrival
+  useEffect(() => {
+    const unclassified = messages.filter(
+      m => !classifiedRef.current.has(m.id) && !m.flagged
+    )
+    if (!unclassified.length) return
+
+    unclassified.forEach(m => classifiedRef.current.add(m.id))
+
+    fetch('/api/messages/classify-actionable', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: unclassified.map(m => ({ id: m.id, content: m.content })) }),
+    })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then((data: { actionable: string[] }) => {
+        const set = new Set(data.actionable)
+        setActionable(prev => {
+          const next = { ...prev }
+          unclassified.forEach(m => { next[m.id] = set.has(m.id) })
+          return next
+        })
+      })
+      .catch(() => {
+        // fail open — show button if classification errors
+        setActionable(prev => {
+          const next = { ...prev }
+          unclassified.forEach(m => { next[m.id] = true })
+          return next
+        })
+      })
+  }, [messages])
 
   async function handleFlag(messageId: string) {
     try {
@@ -274,6 +310,7 @@ export function ChannelView({ channel, currentUserId }: Props) {
                 isCreatingTask={creatingTask.has(msg.id)}
                 taskJustCreated={taskCreated.has(msg.id)}
                 taskFailed={taskError.has(msg.id)}
+                isActionable={actionable[msg.id] === true && !msg.flagged}
               />
             </div>
           )
@@ -319,9 +356,10 @@ type BubbleProps = {
   isCreatingTask: boolean
   taskJustCreated: boolean
   taskFailed: boolean
+  isActionable: boolean
 }
 
-function MessageBubble({ message, isOwn, isGrouped, onFlag, onCopy, onDelete, onCreateTask, isCreatingTask, taskJustCreated, taskFailed }: BubbleProps) {
+function MessageBubble({ message, isOwn, isGrouped, onFlag, onCopy, onDelete, onCreateTask, isCreatingTask, taskJustCreated, taskFailed, isActionable }: BubbleProps) {
   const showHeader = !isGrouped
 
   return (
@@ -446,26 +484,28 @@ function MessageBubble({ message, isOwn, isGrouped, onFlag, onCopy, onDelete, on
               onClick={onFlag}
               active={message.flagged}
             />
-            <ToolbarButton
-              icon={
-                isCreatingTask
-                  ? <Loader2 size={13} strokeWidth={1.5} className="animate-spin" />
-                  : taskJustCreated
-                    ? <Check size={13} strokeWidth={2} />
-                    : taskFailed
-                      ? <X size={13} strokeWidth={2} />
-                      : <ListTodo size={13} strokeWidth={1.5} />
-              }
-              label={
-                isCreatingTask ? 'Creating task…' :
-                taskJustCreated ? 'Task created!' :
-                taskFailed ? 'Failed — try again' :
-                'Create task'
-              }
-              onClick={onCreateTask}
-              active={taskJustCreated}
-              error={taskFailed}
-            />
+            {isActionable && (
+              <ToolbarButton
+                icon={
+                  isCreatingTask
+                    ? <Loader2 size={13} strokeWidth={1.5} className="animate-spin" />
+                    : taskJustCreated
+                      ? <Check size={13} strokeWidth={2} />
+                      : taskFailed
+                        ? <X size={13} strokeWidth={2} />
+                        : <ListTodo size={13} strokeWidth={1.5} />
+                }
+                label={
+                  isCreatingTask ? 'Creating task…' :
+                  taskJustCreated ? 'Task created!' :
+                  taskFailed ? 'Failed — try again' :
+                  'Create task'
+                }
+                onClick={onCreateTask}
+                active={taskJustCreated}
+                error={taskFailed}
+              />
+            )}
             <ToolbarButton
               icon={<Copy size={13} strokeWidth={1.5} />}
               label="Copy"
