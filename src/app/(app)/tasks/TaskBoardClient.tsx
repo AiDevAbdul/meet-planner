@@ -329,6 +329,8 @@ export function TaskBoardClient({ initialTasks, users, departments, currentUserI
                 tasks={colTasks}
                 onTaskClick={openTask}
                 onApprove={col.id === 'triage' ? approveTask : undefined}
+                currentUserId={currentUserId}
+                onStatusChange={(id, status) => updateTask(id, { status })}
               />
             )
           })}
@@ -487,12 +489,14 @@ function FilterSelect({
 // ─── KanbanColumn ─────────────────────────────────────────────────────────────
 
 function KanbanColumn({
-  column, tasks, onTaskClick, onApprove,
+  column, tasks, onTaskClick, onApprove, currentUserId, onStatusChange,
 }: {
-  column:      { id: string; label: string; color: string }
-  tasks:       TaskRow[]
-  onTaskClick: (task: TaskRow) => void
-  onApprove?:  (id: string) => void
+  column:          { id: string; label: string; color: string }
+  tasks:           TaskRow[]
+  onTaskClick:     (task: TaskRow) => void
+  onApprove?:      (id: string) => void
+  currentUserId:   string
+  onStatusChange:  (id: string, status: string) => void
 }) {
   return (
     <div
@@ -557,6 +561,8 @@ function KanbanColumn({
               task={task}
               onClick={onTaskClick}
               onApprove={onApprove}
+              currentUserId={currentUserId}
+              onStatusChange={onStatusChange}
             />
           ))}
 
@@ -580,11 +586,13 @@ function KanbanColumn({
 // ─── SortableTaskCard ─────────────────────────────────────────────────────────
 
 function SortableTaskCard({
-  task, onClick, onApprove,
+  task, onClick, onApprove, currentUserId, onStatusChange,
 }: {
-  task:       TaskRow
-  onClick:    (task: TaskRow) => void
-  onApprove?: (id: string) => void
+  task:            TaskRow
+  onClick:         (task: TaskRow) => void
+  onApprove?:      (id: string) => void
+  currentUserId:   string
+  onStatusChange:  (id: string, status: string) => void
 }) {
   const {
     attributes, listeners, setNodeRef,
@@ -604,6 +612,8 @@ function SortableTaskCard({
         onClick={onClick}
         dragHandleProps={{ ...attributes, ...listeners }}
         onApprove={onApprove}
+        currentUserId={currentUserId}
+        onStatusChange={onStatusChange}
       />
     </div>
   )
@@ -612,13 +622,15 @@ function SortableTaskCard({
 // ─── TaskCard ─────────────────────────────────────────────────────────────────
 
 export function TaskCard({
-  task, onClick, dragHandleProps, isDragging, onApprove,
+  task, onClick, dragHandleProps, isDragging, onApprove, currentUserId, onStatusChange,
 }: {
   task:             TaskRow
   onClick:          (task: TaskRow) => void
   dragHandleProps?: React.HTMLAttributes<HTMLElement>
   isDragging?:      boolean
   onApprove?:       (id: string) => void
+  currentUserId?:   string
+  onStatusChange?:  (id: string, status: string) => void
 }) {
   const [hovered, setHovered] = useState(false)
   const isOverdue =
@@ -716,6 +728,36 @@ export function TaskCard({
           }}
         >
           Approve → To Do
+        </button>
+      )}
+
+      {/* Assignee quick-action buttons */}
+      {task.status === 'todo' && task.assigneeId === currentUserId && onStatusChange && (
+        <button
+          onClick={e => { e.stopPropagation(); onStatusChange(task.id, 'in_progress') }}
+          className="mt-2 w-full text-[11px] font-semibold py-1 rounded-[6px] transition-all hover:opacity-90 active:scale-95"
+          style={{
+            background: 'rgba(255,149,0,0.1)',
+            color:      'var(--color-orange)',
+            border:     '1px solid rgba(255,149,0,0.2)',
+          }}
+          aria-label="Start task"
+        >
+          Start Task
+        </button>
+      )}
+      {task.status === 'in_progress' && task.assigneeId === currentUserId && onStatusChange && (
+        <button
+          onClick={e => { e.stopPropagation(); onStatusChange(task.id, 'done') }}
+          className="mt-2 w-full text-[11px] font-semibold py-1 rounded-[6px] transition-all hover:opacity-90 active:scale-95"
+          style={{
+            background: 'rgba(52,199,89,0.1)',
+            color:      'var(--color-green)',
+            border:     '1px solid rgba(52,199,89,0.2)',
+          }}
+          aria-label="Mark task done"
+        >
+          Mark Done
         </button>
       )}
     </div>

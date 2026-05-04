@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import Link from 'next/link'
-import { Plus, X, FileText, Mail, Video, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
+import { Plus, X, FileText, Mail, Video, Loader2, CheckCircle, AlertCircle, Upload, File } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 
@@ -32,22 +32,34 @@ export function MeetingsClient({ initialMeetings }: Props) {
   const router = useRouter()
   const [meetings, setMeetings] = useState(initialMeetings)
   const [showModal, setShowModal] = useState(false)
+  const [activeTab, setActiveTab] = useState<'paste' | 'upload'>('paste')
   const [rawContent, setRawContent] = useState('')
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [result, setResult] = useState<{ success: boolean; message: string; meetingId?: string } | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!rawContent.trim()) return
+    if (activeTab === 'paste' && !rawContent.trim()) return
+    if (activeTab === 'upload' && !uploadFile) return
     setSubmitting(true)
     setResult(null)
 
     try {
-      const res = await fetch('/api/meetings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rawContent, source: 'manual' }),
-      })
+      let res: Response
+      if (activeTab === 'upload' && uploadFile) {
+        const form = new FormData()
+        form.append('file', uploadFile)
+        form.append('source', 'manual')
+        res = await fetch('/api/meetings/upload', { method: 'POST', body: form })
+      } else {
+        res = await fetch('/api/meetings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rawContent, source: 'manual' }),
+        })
+      }
       const data = await res.json()
 
       if (!res.ok && res.status !== 207) {
@@ -83,6 +95,8 @@ export function MeetingsClient({ initialMeetings }: Props) {
     setShowModal(false)
     setResult(null)
     setRawContent('')
+    setUploadFile(null)
+    setActiveTab('paste')
   }
 
   return (
@@ -172,6 +186,27 @@ export function MeetingsClient({ initialMeetings }: Props) {
               </button>
             </div>
 
+            {/* Tabs */}
+            {!result && (
+              <div className="flex gap-1 p-1 rounded-[10px] mb-4" style={{ background: 'var(--bg-secondary)' }}>
+                {(['paste', 'upload'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className="flex-1 flex items-center justify-center gap-2 py-2 rounded-[8px] text-[13px] font-medium transition-all"
+                    style={{
+                      background: activeTab === tab ? 'var(--bg-primary)' : 'transparent',
+                      color:      activeTab === tab ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                      boxShadow:  activeTab === tab ? 'var(--shadow-sm)' : 'none',
+                    }}
+                  >
+                    {tab === 'paste' ? <FileText size={14} strokeWidth={1.5} /> : <Upload size={14} strokeWidth={1.5} />}
+                    {tab === 'paste' ? 'Paste Notes' : 'Upload File'}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {result ? (
               <div className="flex flex-col items-center gap-4 py-8">
                 {result.success ? (
@@ -212,68 +247,111 @@ export function MeetingsClient({ initialMeetings }: Props) {
               </div>
             ) : (
               <form onSubmit={handleSubmit}>
-                <textarea
-                  value={rawContent}
-                  onChange={e => setRawContent(e.target.value)}
-                  placeholder="Paste your meeting notes or transcript here…&#10;&#10;Example:&#10;Date: May 4, 2026&#10;Attendees: Abdul (PM), Sarah (Design), John (Eng)&#10;&#10;We decided to launch the beta by May 15.&#10;Sarah will finish the design mockups by May 8.&#10;John will implement the API by May 10. High priority."
-                  rows={14}
-                  className="w-full resize-none text-sm outline-none transition-all"
-                  style={{
-                    background:   'var(--bg-secondary)',
-                    color:        'var(--text-primary)',
-                    border:       '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md)',
-                    padding:      '12px 14px',
-                    fontFamily:   'inherit',
-                    lineHeight:   '1.6',
-                  }}
-                  onFocus={e => {
-                    e.currentTarget.style.borderColor = 'var(--color-blue)'
-                  }}
-                  onBlur={e => {
-                    e.currentTarget.style.borderColor = 'var(--border)'
-                  }}
-                  disabled={submitting}
-                />
-
-                <div className="flex items-center justify-between mt-4">
-                  <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
-                    {rawContent.length.toLocaleString()} characters
-                  </p>
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={closeModal}
-                      disabled={submitting}
-                      className="px-4 py-2 text-sm font-medium transition-all"
+                {activeTab === 'paste' ? (
+                  <>
+                    <textarea
+                      value={rawContent}
+                      onChange={e => setRawContent(e.target.value)}
+                      placeholder="Paste your meeting notes or transcript here…&#10;&#10;Example:&#10;Date: May 4, 2026&#10;Attendees: Abdul (PM), Sarah (Design), John (Eng)&#10;&#10;We decided to launch the beta by May 15.&#10;Sarah will finish the design mockups by May 8.&#10;John will implement the API by May 10. High priority."
+                      rows={14}
+                      className="w-full resize-none text-sm outline-none transition-all"
                       style={{
-                        color:        'var(--text-secondary)',
                         background:   'var(--bg-secondary)',
-                        borderRadius: 'var(--radius-md)',
+                        color:        'var(--text-primary)',
                         border:       '1px solid var(--border)',
-                      }}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={submitting || !rawContent.trim()}
-                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition-all hover:opacity-90 disabled:opacity-50"
-                      style={{
-                        background:   'var(--color-blue)',
                         borderRadius: 'var(--radius-md)',
+                        padding:      '12px 14px',
+                        fontFamily:   'inherit',
+                        lineHeight:   '1.6',
                       }}
-                    >
-                      {submitting ? (
-                        <>
-                          <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
-                          Extracting…
-                        </>
-                      ) : (
-                        'Extract with AI'
-                      )}
-                    </button>
+                      onFocus={e => { e.currentTarget.style.borderColor = 'var(--color-blue)' }}
+                      onBlur={e => { e.currentTarget.style.borderColor = 'var(--border)' }}
+                      disabled={submitting}
+                    />
+                    <p className="text-xs mt-2" style={{ color: 'var(--text-tertiary)' }}>
+                      {rawContent.length.toLocaleString()} characters
+                    </p>
+                  </>
+                ) : (
+                  <div
+                    className="flex flex-col items-center justify-center gap-4 rounded-[12px] p-10 cursor-pointer transition-all"
+                    style={{
+                      border:  `2px dashed ${uploadFile ? 'var(--color-blue)' : 'var(--border)'}`,
+                      background: uploadFile ? 'rgba(0,122,255,0.04)' : 'var(--bg-secondary)',
+                    }}
+                    onClick={() => fileInputRef.current?.click()}
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={e => {
+                      e.preventDefault()
+                      const f = e.dataTransfer.files[0]
+                      if (f) setUploadFile(f)
+                    }}
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf,.docx,.txt"
+                      className="hidden"
+                      onChange={e => setUploadFile(e.target.files?.[0] ?? null)}
+                    />
+                    {uploadFile ? (
+                      <>
+                        <File size={36} strokeWidth={1} style={{ color: 'var(--color-blue)' }} />
+                        <div className="text-center">
+                          <p className="text-[14px] font-medium" style={{ color: 'var(--text-primary)' }}>
+                            {uploadFile.name}
+                          </p>
+                          <p className="text-[12px] mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+                            {(uploadFile.size / 1024).toFixed(1)} KB · Click to change
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <Upload size={36} strokeWidth={1} style={{ color: 'var(--text-tertiary)' }} />
+                        <div className="text-center">
+                          <p className="text-[14px] font-medium" style={{ color: 'var(--text-primary)' }}>
+                            Drop a file or click to browse
+                          </p>
+                          <p className="text-[12px] mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+                            PDF, DOCX, or TXT · Max 10 MB
+                          </p>
+                        </div>
+                      </>
+                    )}
                   </div>
+                )}
+
+                <div className="flex items-center justify-end gap-3 mt-4">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    disabled={submitting}
+                    className="px-4 py-2 text-sm font-medium transition-all"
+                    style={{
+                      color:        'var(--text-secondary)',
+                      background:   'var(--bg-secondary)',
+                      borderRadius: 'var(--radius-md)',
+                      border:       '1px solid var(--border)',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting || (activeTab === 'paste' ? !rawContent.trim() : !uploadFile)}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition-all hover:opacity-90 disabled:opacity-50"
+                    style={{ background: 'var(--color-blue)', borderRadius: 'var(--radius-md)' }}
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
+                        Extracting…
+                      </>
+                    ) : (
+                      'Extract with AI'
+                    )}
+                  </button>
                 </div>
               </form>
             )}

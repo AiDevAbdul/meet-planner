@@ -24,7 +24,9 @@ type Props = {
   activityFeed: { id: string; title: string; status: string; updatedAt: Date | null }[]
 }
 
-export function DashboardClient({ tasksDueToday, overdueCount, unreadCount, myTasks, recentMeetings, activityFeed }: Props) {
+export function DashboardClient({ tasksDueToday, overdueCount, unreadCount, myTasks: initialTasks, recentMeetings, activityFeed }: Props) {
+  const [myTasks, setMyTasks] = useState<Task[]>(initialTasks)
+
   const statCards = [
     { label: 'Tasks Due Today',  value: tasksDueToday,          icon: CheckSquare, color: 'var(--color-blue)' },
     { label: 'Overdue Tasks',    value: Number(overdueCount),   icon: Clock,       color: 'var(--color-red)' },
@@ -34,6 +36,15 @@ export function DashboardClient({ tasksDueToday, overdueCount, unreadCount, myTa
   const todo       = myTasks.filter(t => t.status === 'todo')
   const inProgress = myTasks.filter(t => t.status === 'in_progress')
   const done       = myTasks.filter(t => t.status === 'done')
+
+  async function handleStatusChange(id: string, status: string) {
+    setMyTasks(prev => prev.map(t => t.id === id ? { ...t, status } : t))
+    await fetch(`/api/tasks/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    })
+  }
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -61,9 +72,9 @@ export function DashboardClient({ tasksDueToday, overdueCount, unreadCount, myTa
               </Link>
             </div>
             <div className="grid grid-cols-3 gap-3">
-              <KanbanLiteCol label="To Do"       tasks={todo}       />
-              <KanbanLiteCol label="In Progress"  tasks={inProgress} />
-              <KanbanLiteCol label="Done"         tasks={done}       />
+              <KanbanLiteCol label="To Do"       tasks={todo}       onStatusChange={handleStatusChange} />
+              <KanbanLiteCol label="In Progress"  tasks={inProgress} onStatusChange={handleStatusChange} />
+              <KanbanLiteCol label="Done"         tasks={done}       onStatusChange={handleStatusChange} />
             </div>
           </div>
         </div>
@@ -170,7 +181,13 @@ function StatCard({ label, value, icon: Icon, color }: {
   )
 }
 
-function KanbanLiteCol({ label, tasks }: { label: string; tasks: Task[] }) {
+function KanbanLiteCol({
+  label, tasks, onStatusChange,
+}: {
+  label:           string
+  tasks:           Task[]
+  onStatusChange:  (id: string, status: string) => void
+}) {
   return (
     <div>
       <p className="text-[12px] font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-tertiary)' }}>
@@ -178,22 +195,55 @@ function KanbanLiteCol({ label, tasks }: { label: string; tasks: Task[] }) {
       </p>
       <div className="flex flex-col gap-2">
         {tasks.slice(0, 5).map(t => (
-          <Link
+          <div
             key={t.id}
-            href={`/tasks?task=${t.id}`}
-            className="p-2.5 rounded-[8px] flex flex-col gap-1 transition-all hover:-translate-y-px"
+            className="p-2.5 rounded-[8px] flex flex-col gap-1.5"
             style={{
-              background: 'var(--bg-secondary)',
-              borderLeft: `3px solid ${priorityColor(t.priority)}`,
-              border: '1px solid var(--border)',
+              background:      'var(--bg-secondary)',
+              border:          '1px solid var(--border)',
               borderLeftWidth: 3,
+              borderLeftColor: priorityColor(t.priority),
             }}
           >
-            <span className="text-[12px] font-medium leading-snug" style={{ color: 'var(--text-primary)' }}>
-              {t.title}
-            </span>
-            <PriorityBadge priority={t.priority} small />
-          </Link>
+            <Link
+              href={`/tasks?task=${t.id}`}
+              className="flex flex-col gap-1 transition-all hover:opacity-80"
+            >
+              <span className="text-[12px] font-medium leading-snug" style={{ color: 'var(--text-primary)' }}>
+                {t.title}
+              </span>
+              <PriorityBadge priority={t.priority} small />
+            </Link>
+
+            {t.status === 'todo' && (
+              <button
+                onClick={() => onStatusChange(t.id, 'in_progress')}
+                className="w-full text-[10px] font-semibold py-0.5 rounded-[5px] transition-all hover:opacity-90 active:scale-95"
+                style={{
+                  background: 'rgba(255,149,0,0.1)',
+                  color:      'var(--color-orange)',
+                  border:     '1px solid rgba(255,149,0,0.2)',
+                }}
+                aria-label={`Start task: ${t.title}`}
+              >
+                Start
+              </button>
+            )}
+            {t.status === 'in_progress' && (
+              <button
+                onClick={() => onStatusChange(t.id, 'done')}
+                className="w-full text-[10px] font-semibold py-0.5 rounded-[5px] transition-all hover:opacity-90 active:scale-95"
+                style={{
+                  background: 'rgba(52,199,89,0.1)',
+                  color:      'var(--color-green)',
+                  border:     '1px solid rgba(52,199,89,0.2)',
+                }}
+                aria-label={`Mark done: ${t.title}`}
+              >
+                Done
+              </button>
+            )}
+          </div>
         ))}
         {tasks.length === 0 && (
           <p className="text-[12px]" style={{ color: 'var(--text-tertiary)' }}>None</p>

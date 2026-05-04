@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import {
   Search, Users, Smile, Reply, Bookmark, Copy, Trash2,
-  Loader2, AlertCircle,
+  Loader2, AlertCircle, ListTodo, Check,
 } from 'lucide-react'
 import { Avatar } from '@/components/layout/Sidebar'
 import { MessageInput } from './MessageInput'
@@ -46,6 +46,11 @@ export function ChannelView({ channel, currentUserId }: Props) {
     appendMessage,
     updateMessage,
   } = useRealtimeMessages(channel.id)
+
+  // Track which messages are currently being converted to tasks
+  const [creatingTask, setCreatingTask] = useState<Set<string>>(new Set())
+  // Track which messages just had a task created (for success flash)
+  const [taskCreated, setTaskCreated] = useState<Set<string>>(new Set())
 
   const scrollAreaRef    = useRef<HTMLDivElement>(null)
   const bottomRef        = useRef<HTMLDivElement>(null)
@@ -134,6 +139,22 @@ export function ChannelView({ channel, currentUserId }: Props) {
         // The realtime subscription will fire DELETE event too
       }
     } catch {}
+  }
+
+  async function handleCreateTask(messageId: string) {
+    if (creatingTask.has(messageId)) return
+    setCreatingTask(prev => new Set(prev).add(messageId))
+    try {
+      const res = await fetch(`/api/messages/${messageId}/create-task`, { method: 'POST' })
+      if (res.ok) {
+        updateMessage(messageId, { flagged: true })
+        setTaskCreated(prev => new Set(prev).add(messageId))
+        setTimeout(() => {
+          setTaskCreated(prev => { const next = new Set(prev); next.delete(messageId); return next })
+        }, 2500)
+      }
+    } catch {}
+    setCreatingTask(prev => { const next = new Set(prev); next.delete(messageId); return next })
   }
 
   // Group messages: consecutive from same user within 5 minutes → grouped
@@ -239,6 +260,9 @@ export function ChannelView({ channel, currentUserId }: Props) {
                 onFlag={() => handleFlag(msg.id)}
                 onCopy={() => handleCopy(msg.content)}
                 onDelete={() => handleDelete(msg.id)}
+                onCreateTask={() => handleCreateTask(msg.id)}
+                isCreatingTask={creatingTask.has(msg.id)}
+                taskJustCreated={taskCreated.has(msg.id)}
               />
             </div>
           )
@@ -280,9 +304,12 @@ type BubbleProps = {
   onFlag: () => void
   onCopy: () => void
   onDelete: () => void
+  onCreateTask: () => void
+  isCreatingTask: boolean
+  taskJustCreated: boolean
 }
 
-function MessageBubble({ message, isOwn, isGrouped, onFlag, onCopy, onDelete }: BubbleProps) {
+function MessageBubble({ message, isOwn, isGrouped, onFlag, onCopy, onDelete, onCreateTask, isCreatingTask, taskJustCreated }: BubbleProps) {
   const showHeader = !isGrouped
 
   return (
@@ -406,6 +433,18 @@ function MessageBubble({ message, isOwn, isGrouped, onFlag, onCopy, onDelete }: 
               label={message.flagged ? 'Already flagged' : 'Flag as idea'}
               onClick={onFlag}
               active={message.flagged}
+            />
+            <ToolbarButton
+              icon={
+                isCreatingTask
+                  ? <Loader2 size={13} strokeWidth={1.5} className="animate-spin" />
+                  : taskJustCreated
+                    ? <Check size={13} strokeWidth={2} />
+                    : <ListTodo size={13} strokeWidth={1.5} />
+              }
+              label={taskJustCreated ? 'Task created!' : isCreatingTask ? 'Creating task…' : 'Create task'}
+              onClick={onCreateTask}
+              active={taskJustCreated}
             />
             <ToolbarButton
               icon={<Copy size={13} strokeWidth={1.5} />}

@@ -35,6 +35,7 @@ export const users = pgTable('users', {
   departmentId:  uuid('department_id').references(() => departments.id),
   avatarUrl:     text('avatar_url'),
   googleId:      text('google_id').unique(),
+  passwordHash:  text('password_hash'),
   createdAt:     timestamp('created_at').defaultNow().notNull(),
 })
 
@@ -152,4 +153,19 @@ export const channelsRelations = relations(channels, ({ one, many }) => ({
   department: one(departments, { fields: [channels.departmentId], references: [departments.id] }),
   members:    many(channelMembers),
   messages:   many(messages),
+}))
+
+// ─── Task Comments ─────────────────────────────────────────────────────────────
+export const taskComments = pgTable('task_comments', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  taskId:    uuid('task_id').notNull().references(() => tasks.id, { onDelete: 'cascade' }),
+  userId:    uuid('user_id').notNull().references(() => users.id),
+  content:   text('content').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  editedAt:  timestamp('edited_at'),
+})
+
+export const taskCommentsRelations = relations(taskComments, ({ one }) => ({
+  task: one(tasks, { fields: [taskComments.taskId], references: [tasks.id] }),
+  user: one(users, { fields: [taskComments.userId], references: [users.id] }),
 }))

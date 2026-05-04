@@ -16,6 +16,8 @@ type UserRow = {
   departmentSlug:  string | null
   departmentColor: string | null
   activeTaskCount: number
+  totalTaskCount?: number
+  doneTaskCount?:  number
 }
 
 type DeptRow = {
@@ -221,7 +223,7 @@ function UserCard({
         </div>
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-3">
         <div>
           {user.departmentName ? (
             <div className="flex items-center gap-1.5">
@@ -248,10 +250,31 @@ function UserCard({
         >
           <CheckSquare size={13} strokeWidth={1.5} />
           <span className="text-[12px] font-medium">
-            {user.activeTaskCount}
+            {user.activeTaskCount} active
           </span>
         </div>
       </div>
+
+      {/* Workload completion bar */}
+      {(user.totalTaskCount ?? 0) > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>Completion</span>
+            <span className="text-[11px] font-medium" style={{ color: 'var(--text-secondary)' }}>
+              {user.doneTaskCount ?? 0}/{user.totalTaskCount}
+            </span>
+          </div>
+          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${Math.round(((user.doneTaskCount ?? 0) / (user.totalTaskCount ?? 1)) * 100)}%`,
+                background: 'var(--color-green)',
+              }}
+            />
+          </div>
+        </div>
+      )}
     </button>
   )
 }

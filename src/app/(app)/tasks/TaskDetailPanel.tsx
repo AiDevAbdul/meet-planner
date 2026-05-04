@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   X, Trash2, ExternalLink, Calendar, User, Flag,
-  CheckCircle, Clock, AlertCircle,
+  CheckCircle, Clock, AlertCircle, Send, MessageCircle,
 } from 'lucide-react'
 import { PriorityBadge, StatusBadge } from '@/components/ui/Badges'
 import { Avatar } from '@/components/layout/Sidebar'
@@ -42,9 +42,14 @@ export function TaskDetailPanel({ task, users, onClose, onUpdate, onDelete }: Pr
   const [confirmDelete,   setConfirmDelete]    = useState(false)
   const [saving,          setSaving]           = useState(false)
   const [comment,         setComment]          = useState('')
+  const [submittingComment, setSubmittingComment] = useState(false)
   const [activityLog,     setActivityLog]      = useState<
     { id: string; text: string; at: string }[]
   >([])
+  const [comments, setComments] = useState<{
+    id: string; content: string; createdAt: string;
+    userId: string; userName: string | null; userAvatarUrl: string | null
+  }[]>([])
 
   const titleRef = useRef<HTMLInputElement>(null)
   const descRef  = useRef<HTMLTextAreaElement>(null)
@@ -55,6 +60,16 @@ export function TaskDetailPanel({ task, users, onClose, onUpdate, onDelete }: Pr
     const raf = requestAnimationFrame(() => setMounted(true))
     return () => cancelAnimationFrame(raf)
   }, [])
+
+  // Fetch comments when task changes
+  const fetchComments = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/comments`)
+      if (res.ok) setComments(await res.json())
+    } catch {}
+  }, [task.id])
+
+  useEffect(() => { fetchComments() }, [fetchComments])
 
   // Sync drafts when task prop changes (e.g. optimistic updates)
   useEffect(() => {
@@ -124,10 +139,23 @@ export function TaskDetailPanel({ task, users, onClose, onUpdate, onDelete }: Pr
     ])
   }
 
-  function submitComment() {
-    if (!comment.trim()) return
-    addActivity(`Comment: ${comment.trim()}`)
-    setComment('')
+  async function submitComment() {
+    if (!comment.trim() || submittingComment) return
+    setSubmittingComment(true)
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/comments`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ content: comment.trim() }),
+      })
+      if (res.ok) {
+        const newComment = await res.json()
+        setComments(prev => [...prev, newComment])
+        setComment('')
+      }
+    } finally {
+      setSubmittingComment(false)
+    }
   }
 
   async function handleDelete() {
@@ -421,11 +449,38 @@ export function TaskDetailPanel({ task, users, onClose, onUpdate, onDelete }: Pr
               )}
             </div>
 
-            {/* Comment input */}
+            {/* Comments */}
             <div className="mb-4">
-              <label className="block text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: 'var(--text-tertiary)' }}>
-                Add comment
-              </label>
+              <div className="flex items-center gap-1.5 mb-3">
+                <MessageCircle size={13} strokeWidth={1.5} style={{ color: 'var(--text-tertiary)' }} />
+                <label className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>
+                  Comments {comments.length > 0 && `(${comments.length})`}
+                </label>
+              </div>
+
+              {comments.length > 0 && (
+                <div className="flex flex-col gap-3 mb-3">
+                  {comments.map(c => (
+                    <div key={c.id} className="flex items-start gap-2.5">
+                      <Avatar name={c.userName ?? '?'} src={c.userAvatarUrl ?? undefined} size={24} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-2 mb-0.5">
+                          <span className="text-[12px] font-semibold" style={{ color: 'var(--text-primary)' }}>
+                            {c.userName ?? 'Unknown'}
+                          </span>
+                          <span className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
+                            {formatRelative(c.createdAt)}
+                          </span>
+                        </div>
+                        <p className="text-[12px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                          {c.content}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="flex gap-2">
                 <textarea
                   value={comment}
@@ -445,7 +500,17 @@ export function TaskDetailPanel({ task, users, onClose, onUpdate, onDelete }: Pr
                     border:     '1px solid var(--border)',
                   }}
                   aria-label="Add a comment"
+                  disabled={submittingComment}
                 />
+                <button
+                  onClick={submitComment}
+                  disabled={!comment.trim() || submittingComment}
+                  className="self-end flex items-center justify-center w-8 h-8 rounded-[8px] transition-all disabled:opacity-40"
+                  style={{ background: 'var(--color-blue)' }}
+                  aria-label="Submit comment"
+                >
+                  <Send size={13} strokeWidth={1.5} style={{ color: '#fff' }} />
+                </button>
               </div>
             </div>
 

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, CheckSquare, MessageSquare, FileText,
-  Users, Settings, LogOut, Filter,
+  Users, Settings, LogOut, Filter, BarChart2,
 } from 'lucide-react'
 import { signOut, useSession } from 'next-auth/react'
 
@@ -15,6 +15,7 @@ const navItems = [
   { href: '/triage',     icon: Filter,           label: 'Triage Queue' },
   { href: '/messaging',  icon: MessageSquare,    label: 'Messaging' },
   { href: '/people',     icon: Users,            label: 'People' },
+  { href: '/analytics',  icon: BarChart2,        label: 'Analytics' },
 ]
 
 export function Sidebar() {

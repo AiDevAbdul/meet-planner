@@ -2,24 +2,39 @@
 
 import { Bell, Search } from 'lucide-react'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NotificationPanel } from '@/components/notifications/NotificationPanel'
+import { CommandPalette } from '@/components/ui/CommandPalette'
 
 const pageTitles: Record<string, string> = {
-  '/dashboard': 'Dashboard',
-  '/tasks':     'Task Board',
-  '/meetings':  'Meetings',
-  '/triage':    'Triage Queue',
-  '/messaging': 'Messaging',
-  '/people':    'People',
-  '/settings':  'Settings',
+  '/dashboard':  'Dashboard',
+  '/tasks':      'Task Board',
+  '/meetings':   'Meetings',
+  '/triage':     'Triage Queue',
+  '/messaging':  'Messaging',
+  '/people':     'People',
+  '/analytics':  'Analytics',
+  '/settings':   'Settings',
 }
 
 export function Topbar() {
   const pathname   = usePathname()
-  const [notifOpen, setNotifOpen] = useState(false)
+  const [notifOpen,   setNotifOpen]   = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
 
   const title = Object.entries(pageTitles).find(([k]) => pathname.startsWith(k))?.[1] ?? 'MeetPlanner'
+
+  // Global Cmd+K shortcut
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setPaletteOpen(p => !p)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   return (
     <>
@@ -33,11 +48,18 @@ export function Topbar() {
 
         <div className="flex items-center gap-2">
           <button
-            className="w-8 h-8 flex items-center justify-center rounded-[8px] transition-colors"
-            style={{ color: 'var(--text-secondary)' }}
-            aria-label="Search"
+            onClick={() => setPaletteOpen(true)}
+            className="flex items-center gap-2 px-3 h-8 rounded-[8px] transition-colors text-[13px]"
+            style={{
+              background: 'var(--bg-secondary)',
+              border:     '1px solid var(--border)',
+              color:      'var(--text-tertiary)',
+            }}
+            aria-label="Open search (⌘K)"
           >
-            <Search size={18} strokeWidth={1.5} />
+            <Search size={14} strokeWidth={1.5} />
+            <span className="hidden sm:inline">Search</span>
+            <kbd className="hidden sm:inline text-[11px] font-mono ml-1">⌘K</kbd>
           </button>
 
           <button
@@ -55,7 +77,8 @@ export function Topbar() {
         </div>
       </header>
 
-      <NotificationPanel open={notifOpen} onClose={() => setNotifOpen(false)} />
+      <NotificationPanel open={notifOpen}   onClose={() => setNotifOpen(false)} />
+      <CommandPalette    open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </>
   )
 }

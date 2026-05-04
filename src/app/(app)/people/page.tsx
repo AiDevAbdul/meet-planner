@@ -10,7 +10,7 @@ export default async function PeoplePage() {
   const session = await auth()
   const currentUserId = session!.user.id
 
-  // Active task counts per user
+  // Task counts per user (active and total)
   const activeTaskCounts = db
     .select({
       assigneeId:  tasks.assigneeId,
@@ -20,6 +20,25 @@ export default async function PeoplePage() {
     .where(sql`${tasks.status} != 'done'`)
     .groupBy(tasks.assigneeId)
     .as('active_task_counts')
+
+  const totalTaskCounts = db
+    .select({
+      assigneeId:  tasks.assigneeId,
+      totalCount:  count(tasks.id).as('total_count'),
+    })
+    .from(tasks)
+    .groupBy(tasks.assigneeId)
+    .as('total_task_counts')
+
+  const doneTaskCounts = db
+    .select({
+      assigneeId: tasks.assigneeId,
+      doneCount:  count(tasks.id).as('done_count'),
+    })
+    .from(tasks)
+    .where(sql`${tasks.status} = 'done'`)
+    .groupBy(tasks.assigneeId)
+    .as('done_task_counts')
 
   const [allUsers, allDepartments] = await Promise.all([
     db
@@ -34,10 +53,14 @@ export default async function PeoplePage() {
         departmentSlug:  departments.slug,
         departmentColor: departments.color,
         activeTaskCount: sql<number>`coalesce(${activeTaskCounts.activeCount}, 0)`,
+        totalTaskCount:  sql<number>`coalesce(${totalTaskCounts.totalCount}, 0)`,
+        doneTaskCount:   sql<number>`coalesce(${doneTaskCounts.doneCount}, 0)`,
       })
       .from(users)
       .leftJoin(departments, eq(users.departmentId, departments.id))
       .leftJoin(activeTaskCounts, eq(users.id, activeTaskCounts.assigneeId))
+      .leftJoin(totalTaskCounts,  eq(users.id, totalTaskCounts.assigneeId))
+      .leftJoin(doneTaskCounts,   eq(users.id, doneTaskCounts.assigneeId))
       .orderBy(users.name),
 
     db
