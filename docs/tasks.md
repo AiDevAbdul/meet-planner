@@ -26,7 +26,7 @@
 ---
 
 ### Task 2 — Phase 3B: Post-Meeting Processing (Transcript → Minutes → Approve → Distribute)
-**Status**: 🔲 TODO
+**Status**: ✅ DONE (commit `b801c43`)
 
 **What to build**:
 - Extend `/api/webhooks/gmail` to detect Google Meet recording emails (subject pattern `"Recording available:"`) and fetch transcript from Google Drive API
