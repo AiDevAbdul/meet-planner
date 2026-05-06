@@ -13,7 +13,7 @@ export default async function SettingsPage() {
   const currentUserId = session.user.id
 
   const [currentUser] = await db
-    .select({ id: users.id, name: users.name, email: users.email, role: users.role, avatarUrl: users.avatarUrl, departmentId: users.departmentId })
+    .select({ id: users.id, name: users.name, email: users.email, role: users.role, avatarUrl: users.avatarUrl, departmentId: users.departmentId, dailyReportEmail: users.dailyReportEmail })
     .from(users)
     .where(eq(users.id, currentUserId))
     .limit(1)

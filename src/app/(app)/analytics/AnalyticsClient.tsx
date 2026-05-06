@@ -1,20 +1,33 @@
 'use client'
 
-import { CheckSquare, Clock, TrendingUp, Users } from 'lucide-react'
+import { useState } from 'react'
+import { CheckSquare, Clock, TrendingUp, Users, FileText, ChevronDown, ChevronUp, Mail } from 'lucide-react'
+import { formatDate } from '@/lib/utils'
 
 type StatusBreakdown  = { status: string;   count: number }
 type PriorityBreakdown = { priority: string; count: number }
 type AssigneeLoad     = { name: string; total: number; done: number }
 
+export type DailyReport = {
+  id:              string
+  date:            string
+  contentHtml:     string
+  contentMarkdown: string
+  sentAt:          Date | string | null
+  recipientIds:    string[] | null
+  createdAt:       Date | string
+}
+
 type Props = {
-  totalTasks:       number
-  completedTasks:   number
-  overdueTasks:     number
-  totalMeetings:    number
-  statusBreakdown:  StatusBreakdown[]
+  totalTasks:        number
+  completedTasks:    number
+  overdueTasks:      number
+  totalMeetings:     number
+  statusBreakdown:   StatusBreakdown[]
   priorityBreakdown: PriorityBreakdown[]
-  assigneeLoad:     AssigneeLoad[]
+  assigneeLoad:      AssigneeLoad[]
   meetingsThisMonth: number
+  dailyReports:      DailyReport[]
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -36,14 +49,15 @@ const PRIORITY_COLORS: Record<string, string> = {
   low:      'var(--color-yellow)',
 }
 
+const TABS = ['Overview', 'Reports'] as const
+type Tab = (typeof TABS)[number]
+
 export function AnalyticsClient({
   totalTasks, completedTasks, overdueTasks, totalMeetings,
   statusBreakdown, priorityBreakdown, assigneeLoad, meetingsThisMonth,
+  dailyReports,
 }: Props) {
-  const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
-  const maxStatus   = Math.max(...statusBreakdown.map(s => s.count),  1)
-  const maxPriority = Math.max(...priorityBreakdown.map(p => p.count), 1)
-  const maxLoad     = Math.max(...assigneeLoad.map(a => a.total), 1)
+  const [activeTab, setActiveTab] = useState<Tab>('Overview')
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -61,6 +75,63 @@ export function AnalyticsClient({
         </div>
       </div>
 
+      {/* Tab bar */}
+      <div
+        className="flex items-center gap-1 mb-6 p-1 rounded-[12px]"
+        style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', width: 'fit-content' }}
+        role="tablist"
+      >
+        {TABS.map(tab => (
+          <button
+            key={tab}
+            role="tab"
+            aria-selected={activeTab === tab}
+            onClick={() => setActiveTab(tab)}
+            className="text-[13px] font-medium px-4 py-1.5 rounded-[9px] transition-all"
+            style={{
+              background: activeTab === tab ? 'var(--bg-primary)' : 'transparent',
+              color:      activeTab === tab ? 'var(--text-primary)' : 'var(--text-secondary)',
+              boxShadow:  activeTab === tab ? 'var(--shadow-sm)' : 'none',
+            }}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'Overview' && (
+        <OverviewTab
+          totalTasks={totalTasks}
+          completedTasks={completedTasks}
+          overdueTasks={overdueTasks}
+          totalMeetings={totalMeetings}
+          statusBreakdown={statusBreakdown}
+          priorityBreakdown={priorityBreakdown}
+          assigneeLoad={assigneeLoad}
+          meetingsThisMonth={meetingsThisMonth}
+        />
+      )}
+
+      {activeTab === 'Reports' && (
+        <ReportsTab reports={dailyReports} />
+      )}
+    </div>
+  )
+}
+
+// ─── Overview tab (original content) ─────────────────────────────────────────
+
+function OverviewTab({
+  totalTasks, completedTasks, overdueTasks, totalMeetings,
+  statusBreakdown, priorityBreakdown, assigneeLoad, meetingsThisMonth,
+}: Omit<Props, 'dailyReports'>) {
+  const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
+  const maxStatus   = Math.max(...statusBreakdown.map(s => s.count),  1)
+  const maxPriority = Math.max(...priorityBreakdown.map(p => p.count), 1)
+  const maxLoad     = Math.max(...assigneeLoad.map(a => a.total), 1)
+
+  return (
+    <>
       {/* Key metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <MetricCard
@@ -179,9 +250,91 @@ export function AnalyticsClient({
           </div>
         )}
       </div>
+    </>
+  )
+}
+
+// ─── Reports tab ──────────────────────────────────────────────────────────────
+
+function ReportsTab({ reports }: { reports: DailyReport[] }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  if (reports.length === 0) {
+    return (
+      <div className="glass-card p-10 flex flex-col items-center gap-3 text-center">
+        <FileText size={32} strokeWidth={1} style={{ color: 'var(--text-tertiary)' }} />
+        <p className="text-[15px] font-medium" style={{ color: 'var(--text-primary)' }}>No reports yet</p>
+        <p className="text-[13px]" style={{ color: 'var(--text-tertiary)' }}>
+          Daily reports are generated automatically at 5:00 PM and sent to managers and admins.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {reports.map(report => {
+        const expanded = expandedId === report.id
+        return (
+          <div key={report.id} className="glass-card overflow-hidden">
+            {/* Report header row */}
+            <button
+              onClick={() => setExpandedId(expanded ? null : report.id)}
+              className="w-full flex items-center justify-between p-5 text-left"
+              aria-expanded={expanded}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-9 h-9 rounded-[10px] flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'rgba(0,122,255,0.1)' }}
+                >
+                  <FileText size={17} strokeWidth={1.5} style={{ color: 'var(--color-blue)' }} />
+                </div>
+                <div>
+                  <p className="text-[14px] font-semibold" style={{ color: 'var(--text-primary)' }}>
+                    Daily Report — {formatDate(report.date)}
+                  </p>
+                  <div className="flex items-center gap-3 mt-0.5">
+                    {report.sentAt ? (
+                      <span className="flex items-center gap-1 text-[11px]" style={{ color: 'var(--color-green)' }}>
+                        <Mail size={10} strokeWidth={1.5} />
+                        Sent to {report.recipientIds?.length ?? 0} recipient{(report.recipientIds?.length ?? 0) !== 1 ? 's' : ''}
+                      </span>
+                    ) : (
+                      <span className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
+                        Email not sent
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              {expanded
+                ? <ChevronUp size={16} strokeWidth={1.5} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
+                : <ChevronDown size={16} strokeWidth={1.5} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
+              }
+            </button>
+
+            {/* Expanded report content */}
+            {expanded && (
+              <div
+                className="px-5 pb-5"
+                style={{ borderTop: '1px solid var(--border)' }}
+              >
+                <div
+                  className="mt-4 prose prose-sm max-w-none text-[13px] leading-relaxed"
+                  style={{ color: 'var(--text-secondary)' }}
+                  dangerouslySetInnerHTML={{ __html: report.contentHtml }}
+                />
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
+
+// ─── Shared helpers ───────────────────────────────────────────────────────────
 
 function MetricCard({
   icon, label, value, sub, color,

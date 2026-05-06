@@ -10,12 +10,13 @@ import { useTheme } from '@/components/ui/ThemeProvider'
 import { Avatar } from '@/components/layout/Sidebar'
 
 type CurrentUser = {
-  id:           string
-  name:         string
-  email:        string
-  role:         string
-  avatarUrl:    string | null
-  departmentId: string | null
+  id:               string
+  name:             string
+  email:            string
+  role:             string
+  avatarUrl:        string | null
+  departmentId:     string | null
+  dailyReportEmail: boolean
 }
 
 type TeamMember = {
@@ -36,7 +37,7 @@ type Department = {
   memberCount: number
 }
 
-const TABS = ['General', 'Team', 'Departments', 'Appearance'] as const
+const TABS = ['General', 'Team', 'Departments', 'Appearance', 'Notifications'] as const
 type Tab = (typeof TABS)[number]
 
 const PRESET_COLORS = [
@@ -130,10 +131,11 @@ export function SettingsClient({
 
       {/* Panel */}
       <div role="tabpanel">
-        {activeTab === 'General'     && <GeneralTab currentUser={currentUser} />}
-        {activeTab === 'Team'        && <TeamTab allUsers={allUsers} currentUser={currentUser} isAdmin={isAdmin} departments={departments} />}
-        {activeTab === 'Departments' && <DepartmentsTab departments={departments} isAdmin={isAdmin} />}
-        {activeTab === 'Appearance'  && <AppearanceTab />}
+        {activeTab === 'General'       && <GeneralTab currentUser={currentUser} />}
+        {activeTab === 'Team'          && <TeamTab allUsers={allUsers} currentUser={currentUser} isAdmin={isAdmin} departments={departments} />}
+        {activeTab === 'Departments'   && <DepartmentsTab departments={departments} isAdmin={isAdmin} />}
+        {activeTab === 'Appearance'    && <AppearanceTab />}
+        {activeTab === 'Notifications' && <NotificationsTab currentUser={currentUser} />}
       </div>
     </div>
   )
@@ -882,6 +884,103 @@ function Modal({
         {children}
       </div>
     </>
+  )
+}
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+function NotificationsTab({ currentUser }: { currentUser: CurrentUser }) {
+  const isEligible = currentUser.role === 'admin' || currentUser.role === 'manager'
+  const [dailyReport, setDailyReport] = useState(currentUser.dailyReportEmail)
+  const [saving,      setSaving]      = useState(false)
+  const [saved,       setSaved]       = useState(false)
+
+  async function toggleDailyReport(value: boolean) {
+    setDailyReport(value)
+    setSaving(true)
+    try {
+      await fetch('/api/me/preferences', {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ dailyReportEmail: value }),
+      })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="glass-card" style={{ padding: 28 }}>
+      <h2 className="text-[17px] font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+        Notification Preferences
+      </h2>
+      <p className="text-[13px] mb-6" style={{ color: 'var(--text-secondary)' }}>
+        Control which automated emails you receive.
+      </p>
+
+      <div className="flex flex-col gap-4">
+        {/* Daily report toggle */}
+        <div
+          className="flex items-start justify-between gap-4 p-4 rounded-[12px]"
+          style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
+        >
+          <div>
+            <p className="text-[14px] font-medium mb-0.5" style={{ color: 'var(--text-primary)' }}>
+              Daily Progress Report
+            </p>
+            <p className="text-[12px]" style={{ color: 'var(--text-secondary)' }}>
+              Receive an AI-generated summary of team progress every day at 5:00 PM.
+            </p>
+            {!isEligible && (
+              <p className="text-[11px] mt-1.5" style={{ color: 'var(--text-tertiary)' }}>
+                Daily reports are sent to managers and admins only.
+              </p>
+            )}
+          </div>
+
+          <button
+            onClick={() => isEligible && !saving && toggleDailyReport(!dailyReport)}
+            disabled={saving || !isEligible}
+            aria-pressed={dailyReport}
+            aria-label="Toggle daily report email"
+            style={{
+              position:        'relative',
+              width:           44,
+              height:          26,
+              borderRadius:    13,
+              background:      dailyReport && isEligible ? 'var(--color-green)' : 'var(--border)',
+              border:          'none',
+              cursor:          isEligible ? 'pointer' : 'not-allowed',
+              transition:      'background 200ms',
+              flexShrink:      0,
+              opacity:         !isEligible ? 0.4 : 1,
+            }}
+          >
+            <span
+              style={{
+                position:   'absolute',
+                top:        3,
+                left:       dailyReport && isEligible ? 21 : 3,
+                width:      20,
+                height:     20,
+                borderRadius: '50%',
+                background: '#fff',
+                boxShadow:  '0 1px 3px rgba(0,0,0,0.15)',
+                transition: 'left 200ms',
+              }}
+            />
+          </button>
+        </div>
+      </div>
+
+      {saved && (
+        <p className="text-[12px] mt-3" style={{ color: 'var(--color-green)' }}>
+          Preferences saved.
+        </p>
+      )}
+    </div>
   )
 }
 

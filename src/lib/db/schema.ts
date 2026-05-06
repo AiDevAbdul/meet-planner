@@ -39,17 +39,18 @@ export const departments = pgTable('departments', {
 })
 
 export const users = pgTable('users', {
-  id:            uuid('id').primaryKey().defaultRandom(),
-  name:          text('name').notNull(),
-  email:         text('email').notNull().unique(),
-  emailVerified: timestamp('email_verified', { mode: 'date' }),
-  image:         text('image'),
-  role:          roleEnum('role').default('member').notNull(),
-  departmentId:  uuid('department_id').references(() => departments.id),
-  avatarUrl:     text('avatar_url'),
-  googleId:      text('google_id').unique(),
-  passwordHash:  text('password_hash'),
-  createdAt:     timestamp('created_at').defaultNow().notNull(),
+  id:               uuid('id').primaryKey().defaultRandom(),
+  name:             text('name').notNull(),
+  email:            text('email').notNull().unique(),
+  emailVerified:    timestamp('email_verified', { mode: 'date' }),
+  image:            text('image'),
+  role:             roleEnum('role').default('member').notNull(),
+  departmentId:     uuid('department_id').references(() => departments.id),
+  avatarUrl:        text('avatar_url'),
+  googleId:         text('google_id').unique(),
+  passwordHash:     text('password_hash'),
+  dailyReportEmail: boolean('daily_report_email').default(true).notNull(),
+  createdAt:        timestamp('created_at').defaultNow().notNull(),
 })
 
 export const meetings = pgTable('meetings', {
@@ -227,6 +228,17 @@ export const meetingMinutesRelations = relations(meetingMinutes, ({ one }) => ({
   reviewer: one(users,    { fields: [meetingMinutes.reviewedBy], references: [users.id], relationName: 'mm_reviewer' }),
   approver: one(users,    { fields: [meetingMinutes.approvedBy], references: [users.id], relationName: 'mm_approver' }),
 }))
+
+// ─── Daily Reports ────────────────────────────────────────────────────────────
+export const dailyReports = pgTable('daily_reports', {
+  id:              uuid('id').primaryKey().defaultRandom(),
+  date:            date('date').notNull(),
+  contentHtml:     text('content_html').notNull(),
+  contentMarkdown: text('content_markdown').notNull(),
+  sentAt:          timestamp('sent_at', { withTimezone: true }),
+  recipientIds:    jsonb('recipient_ids').$type<string[]>(),
+  createdAt:       timestamp('created_at').defaultNow().notNull(),
+})
 
 // ─── Milestones ────────────────────────────────────────────────────────────────
 export const milestones = pgTable('milestones', {

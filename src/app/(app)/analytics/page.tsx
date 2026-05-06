@@ -1,8 +1,8 @@
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { db } from '@/lib/db'
-import { tasks, meetings, users } from '@/lib/db/schema'
-import { count, eq, ne, lt, and, isNotNull, gte } from 'drizzle-orm'
+import { tasks, meetings, users, dailyReports } from '@/lib/db/schema'
+import { count, desc, eq, ne, lt, and, isNotNull, gte } from 'drizzle-orm'
 import { AnalyticsClient } from './AnalyticsClient'
 
 export default async function AnalyticsPage() {
@@ -18,6 +18,7 @@ export default async function AnalyticsPage() {
     allMeetings,
     meetingsThisMonthResult,
     overdueResult,
+    reportsResult,
   ] = await Promise.all([
     db
       .select({ status: tasks.status, priority: tasks.priority, assigneeId: tasks.assigneeId })
@@ -38,6 +39,12 @@ export default async function AnalyticsPage() {
         isNotNull(tasks.dueDate),
         lt(tasks.dueDate, today),
       )),
+
+    db
+      .select()
+      .from(dailyReports)
+      .orderBy(desc(dailyReports.date))
+      .limit(60),
   ])
 
   const totalTasks      = allTasks.length
@@ -101,6 +108,7 @@ export default async function AnalyticsPage() {
       priorityBreakdown={priorityBreakdown}
       assigneeLoad={assigneeLoad}
       meetingsThisMonth={meetingsThisMonth}
+      dailyReports={reportsResult}
     />
   )
 }
