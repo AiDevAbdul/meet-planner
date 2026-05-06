@@ -76,7 +76,7 @@
 ---
 
 ### Task 4 — Phase 3D: Daily Progress Reports (AI-generated, auto-sent to management)
-**Status**: 🔲 TODO
+**Status**: ✅ DONE (commit `8a9ee05`)
 
 **What to build**:
 - New DB table: `daily_reports` (id, date, content_html, content_markdown, sent_at, recipient_ids jsonb, created_at)
