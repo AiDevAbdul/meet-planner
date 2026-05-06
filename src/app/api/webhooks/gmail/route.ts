@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { meetings, tasks, users } from '@/lib/db/schema'
+import { meetings, meetingMinutes, tasks, users } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { extractMeeting } from '@/lib/ai/extractMeeting'
+import { generateMinutes } from '@/lib/ai/generateMinutes'
+import { fetchDriveFileText, extractDriveFileId } from '@/lib/google/drive'
+import { createNotification } from '@/lib/notifications'
 
 // ─── POST /api/webhooks/gmail ─────────────────────────────────────────────────
 // Receives Gmail push notifications via Google Cloud Pub/Sub.
@@ -55,6 +58,14 @@ export async function POST(req: NextRequest) {
   }
 
   const rawContent = decodedData.rawContent ?? decodedData.body ?? decodedData.snippet
+
+  // ── Google Meet recording email ────────────────────────────────────────────
+  const subject = decodedData.subject ?? ''
+  if (subject.toLowerCase().includes('recording available')) {
+    await handleRecordingEmail(decodedData)
+    return NextResponse.json({ ok: true })
+  }
+
   if (!rawContent) {
     return NextResponse.json({ ok: true })
   }
@@ -145,4 +156,93 @@ export async function POST(req: NextRequest) {
 
   // Always return 200 to acknowledge the Pub/Sub push
   return NextResponse.json({ ok: true })
+}
+
+// ─── Handle Google Meet recording / transcript email ──────────────────────────
+async function handleRecordingEmail(data: {
+  emailAddress?: string
+  subject?: string
+  body?: string
+  snippet?: string
+  rawContent?: string
+}) {
+  const subject    = data.subject ?? 'Meeting Recording'
+  const emailBody  = data.rawContent ?? data.body ?? data.snippet ?? ''
+  const meetingTitle = subject.replace(/^recording available:?\s*/i, '').trim() || 'Google Meet Recording'
+
+  // Find Drive link in email body
+  const driveUrlMatch = emailBody.match(/https:\/\/(?:drive|docs)\.google\.com\/[^\s"<>]+/)
+  let transcript = emailBody
+
+  if (driveUrlMatch) {
+    const fileId = extractDriveFileId(driveUrlMatch[0])
+    if (fileId) {
+      try {
+        transcript = await fetchDriveFileText(fileId)
+      } catch (err) {
+        console.warn('[gmail-webhook] Could not fetch Drive transcript, using email body:', err)
+      }
+    }
+  }
+
+  // Find sender in DB
+  let creatorId: string | null = null
+  if (data.emailAddress) {
+    const [user] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, data.emailAddress))
+      .limit(1)
+    creatorId = user?.id ?? null
+  }
+
+  // Create meeting record
+  const [meeting] = await db
+    .insert(meetings)
+    .values({
+      title:      meetingTitle,
+      source:     'google_meet',
+      rawContent: transcript,
+      createdBy:  creatorId ?? undefined,
+    })
+    .returning()
+
+  // Generate minutes with AI
+  try {
+    const content = await generateMinutes(transcript, meetingTitle)
+
+    const [minutes] = await db
+      .insert(meetingMinutes)
+      .values({
+        meetingId:     meeting.id,
+        content,
+        status:        'pending_review',
+        generatedByAi: true,
+      })
+      .returning()
+
+    // Notify all managers/admins that minutes are ready for review
+    const managers = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.role, 'manager'))
+
+    const admins = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.role, 'admin'))
+
+    const recipients = [...managers, ...admins]
+    await Promise.all(
+      recipients.map(u =>
+        createNotification(u.id, 'minutes_ready_for_review', {
+          meetingTitle,
+          minutesId: minutes.id,
+          meetingId: meeting.id,
+        })
+      )
+    )
+  } catch (err) {
+    console.error('[gmail-webhook] Minutes generation failed:', err)
+  }
 }

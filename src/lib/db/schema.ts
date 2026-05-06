@@ -16,10 +16,15 @@ export const notifTypeEnum = pgEnum('notif_type', [
   'idea_flagged', 'idea_approved', 'meeting_processed',
   'meeting_request_submitted', 'meeting_request_approved',
   'meeting_request_rejected', 'meeting_reminder',
+  'minutes_ready_for_review',
 ])
 
 export const meetingRequestStatusEnum = pgEnum('meeting_request_status', [
   'draft', 'pending_review', 'approved', 'rejected', 'sent',
+])
+
+export const minutesStatusEnum = pgEnum('minutes_status', [
+  'draft', 'pending_review', 'approved', 'distributed',
 ])
 
 // ─── Tables ───────────────────────────────────────────────────────────────────
@@ -198,4 +203,24 @@ export const taskComments = pgTable('task_comments', {
 export const taskCommentsRelations = relations(taskComments, ({ one }) => ({
   task: one(tasks, { fields: [taskComments.taskId], references: [tasks.id] }),
   user: one(users, { fields: [taskComments.userId], references: [users.id] }),
+}))
+
+// ─── Meeting Minutes ───────────────────────────────────────────────────────────
+export const meetingMinutes = pgTable('meeting_minutes', {
+  id:            uuid('id').primaryKey().defaultRandom(),
+  meetingId:     uuid('meeting_id').notNull().references(() => meetings.id, { onDelete: 'cascade' }),
+  content:       text('content').notNull(),
+  status:        minutesStatusEnum('status').default('draft').notNull(),
+  generatedByAi: boolean('generated_by_ai').default(false).notNull(),
+  reviewedBy:    uuid('reviewed_by').references(() => users.id),
+  approvedBy:    uuid('approved_by').references(() => users.id),
+  distributedAt: timestamp('distributed_at', { withTimezone: true }),
+  createdAt:     timestamp('created_at').defaultNow().notNull(),
+  updatedAt:     timestamp('updated_at').defaultNow().notNull(),
+})
+
+export const meetingMinutesRelations = relations(meetingMinutes, ({ one }) => ({
+  meeting:  one(meetings, { fields: [meetingMinutes.meetingId],  references: [meetings.id] }),
+  reviewer: one(users,    { fields: [meetingMinutes.reviewedBy], references: [users.id], relationName: 'mm_reviewer' }),
+  approver: one(users,    { fields: [meetingMinutes.approvedBy], references: [users.id], relationName: 'mm_approver' }),
 }))

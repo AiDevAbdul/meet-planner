@@ -55,6 +55,8 @@ function buildMessage(type: string, payload: Record<string, string>): string {
       return `Your meeting request "${payload.requestTitle ?? 'Untitled'}" was not approved.${payload.reviewNote ? ` Reason: ${payload.reviewNote}` : ''}`
     case 'meeting_reminder':
       return `Reminder: "${payload.requestTitle ?? 'Meeting'}" starts in 30 minutes.`
+    case 'minutes_ready_for_review':
+      return `Meeting minutes for "${payload.meetingTitle ?? 'a meeting'}" are ready for review.`
     default:
       return payload.message ?? 'You have a new notification.'
   }

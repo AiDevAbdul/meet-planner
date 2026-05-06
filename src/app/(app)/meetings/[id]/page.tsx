@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { meetings, tasks, users } from '@/lib/db/schema'
+import { meetings, meetingMinutes, tasks, users } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { notFound } from 'next/navigation'
 import { MeetingDetailClient } from './MeetingDetailClient'
@@ -12,7 +12,7 @@ type Props = {
 }
 
 export default async function MeetingDetailPage({ params }: Props) {
-  await auth()
+  const session = await auth()
   const { id } = await params
 
   const [meeting] = await db
@@ -66,6 +66,32 @@ export default async function MeetingDetailPage({ params }: Props) {
     .from(users)
     .orderBy(users.name)
 
+  // Fetch minutes and current user role
+  const [minutes] = await db
+    .select()
+    .from(meetingMinutes)
+    .where(eq(meetingMinutes.meetingId, id))
+    .limit(1)
+
+  let isManagerOrAdmin = false
+  if (session?.user?.id) {
+    const [currentUser] = await db
+      .select({ role: users.role })
+      .from(users)
+      .where(eq(users.id, session.user.id))
+      .limit(1)
+    isManagerOrAdmin = ['admin', 'manager'].includes(currentUser?.role ?? '')
+  }
+
+  const shapedMinutes = minutes
+    ? {
+        ...minutes,
+        distributedAt: minutes.distributedAt?.toISOString() ?? null,
+        createdAt:     minutes.createdAt.toISOString(),
+        updatedAt:     minutes.updatedAt.toISOString(),
+      }
+    : null
+
   return (
     <MeetingDetailClient
       meeting={{
@@ -75,6 +101,8 @@ export default async function MeetingDetailPage({ params }: Props) {
       }}
       tasks={enrichedTasks}
       allUsers={allUsers}
+      initialMinutes={shapedMinutes}
+      isManagerOrAdmin={isManagerOrAdmin}
     />
   )
 }
