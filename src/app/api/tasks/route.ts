@@ -48,6 +48,7 @@ export async function GET(req: NextRequest) {
       createdBy:    tasks.createdBy,
       meetingId:    tasks.meetingId,
       departmentId: tasks.departmentId,
+      projectId:    tasks.projectId,
       dueDate:      tasks.dueDate,
       position:     tasks.position,
       createdAt:    tasks.createdAt,

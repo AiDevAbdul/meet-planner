@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   X, Trash2, ExternalLink, Calendar, User, Flag,
   CheckCircle, Clock, AlertCircle, Send, MessageCircle,
-  Sparkles, Plus, Check, Loader2,
+  Sparkles, Plus, Check, Loader2, GitBranch, Link2, Sliders,
 } from 'lucide-react'
 import { PriorityBadge, StatusBadge } from '@/components/ui/Badges'
 import { Avatar } from '@/components/layout/Sidebar'
@@ -21,6 +21,38 @@ type Milestone = {
   status:      'pending' | 'in_progress' | 'completed'
   aiSuggested: boolean
   createdAt:   string
+}
+
+type Subtask = {
+  id:               string
+  title:            string
+  status:           string
+  priority:         string
+  assigneeId:       string | null
+  dueDate:          string | null
+  createdAt:        string
+  assigneeName:     string | null
+  assigneeAvatarUrl: string | null
+}
+
+type DepTask = {
+  id:       string
+  title:    string
+  status:   string
+  priority: string
+}
+
+type CustomFieldDef = {
+  id:        string
+  name:      string
+  type:      'text' | 'number' | 'date' | 'select' | 'checkbox'
+  options:   string[] | null
+  position:  number
+}
+
+type CustomFieldVal = {
+  fieldDefinitionId: string
+  value:             string | null
 }
 
 type Props = {
@@ -436,6 +468,17 @@ export function TaskDetailPanel({ task, users, onClose, onUpdate, onDelete }: Pr
 
             {/* Milestones */}
             <MilestoneSection taskId={task.id} />
+
+            {/* Subtasks */}
+            <SubtasksSection taskId={task.id} users={users} />
+
+            {/* Dependencies */}
+            <DependenciesSection taskId={task.id} />
+
+            {/* Custom fields */}
+            {task.projectId && (
+              <CustomFieldsSection taskId={task.id} projectId={task.projectId} />
+            )}
 
             {/* Activity log */}
             <div className="mb-4">
@@ -923,6 +966,510 @@ function MilestoneRow({
       >
         <X size={11} strokeWidth={2} />
       </button>
+    </div>
+  )
+}
+
+// ── SubtasksSection ───────────────────────────────────────────────────────────
+
+function SubtasksSection({ taskId, users }: { taskId: string; users: UserRow[] }) {
+  const [subtasks,   setSubtasks]   = useState<Subtask[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const [newTitle,   setNewTitle]   = useState('')
+  const [adding,     setAdding]     = useState(false)
+
+  const fetchSubtasks = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/subtasks`)
+      if (res.ok) setSubtasks(await res.json())
+    } finally {
+      setLoading(false)
+    }
+  }, [taskId])
+
+  useEffect(() => { fetchSubtasks() }, [fetchSubtasks])
+
+  async function addSubtask() {
+    if (!newTitle.trim() || adding) return
+    setAdding(true)
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/subtasks`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ title: newTitle.trim() }),
+      })
+      if (res.ok) {
+        const sub = await res.json()
+        setSubtasks(prev => [...prev, { ...sub, assigneeName: null, assigneeAvatarUrl: null }])
+        setNewTitle('')
+      }
+    } finally {
+      setAdding(false)
+    }
+  }
+
+  async function toggleSubtask(sub: Subtask) {
+    const next = sub.status === 'done' ? 'todo' : 'done'
+    setSubtasks(prev => prev.map(s => s.id === sub.id ? { ...s, status: next } : s))
+    await fetch(`/api/tasks/${sub.id}`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ status: next }),
+    })
+  }
+
+  async function deleteSubtask(id: string) {
+    setSubtasks(prev => prev.filter(s => s.id !== id))
+    await fetch(`/api/tasks/${id}`, { method: 'DELETE' })
+  }
+
+  const total     = subtasks.length
+  const completed = subtasks.filter(s => s.status === 'done').length
+
+  return (
+    <div className="mb-5">
+      <div className="flex items-center gap-1.5 mb-2">
+        <GitBranch size={13} strokeWidth={1.5} style={{ color: 'var(--text-tertiary)' }} />
+        <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>
+          Subtasks
+        </span>
+        {total > 0 && (
+          <span className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
+            {completed}/{total}
+          </span>
+        )}
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-1.5 py-1">
+          <Loader2 size={12} strokeWidth={2} className="animate-spin" style={{ color: 'var(--text-tertiary)' }} />
+          <span className="text-[12px]" style={{ color: 'var(--text-tertiary)' }}>Loading…</span>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1.5 mb-3">
+          {subtasks.map(sub => {
+            const done = sub.status === 'done'
+            return (
+              <div key={sub.id} className="flex items-center gap-2 group">
+                <button
+                  onClick={() => toggleSubtask(sub)}
+                  className="flex-shrink-0 w-4 h-4 rounded-full border flex items-center justify-center transition-all"
+                  style={{
+                    background:  done ? 'var(--color-green)' : 'transparent',
+                    borderColor: done ? 'var(--color-green)' : 'var(--border)',
+                  }}
+                  aria-label={done ? 'Mark incomplete' : 'Mark complete'}
+                >
+                  {done && <Check size={9} strokeWidth={3} style={{ color: '#fff' }} />}
+                </button>
+                <span
+                  className="flex-1 text-[12px] leading-snug truncate"
+                  style={{
+                    color:          done ? 'var(--text-tertiary)' : 'var(--text-secondary)',
+                    textDecoration: done ? 'line-through' : 'none',
+                  }}
+                  title={sub.title}
+                >
+                  {sub.title}
+                </span>
+                {sub.assigneeName && (
+                  <Avatar name={sub.assigneeName} src={sub.assigneeAvatarUrl ?? undefined} size={16} />
+                )}
+                <button
+                  onClick={() => deleteSubtask(sub.id)}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity hover:opacity-70 flex-shrink-0"
+                  style={{ color: 'var(--text-tertiary)', padding: 2 }}
+                  aria-label="Delete subtask"
+                >
+                  <X size={11} strokeWidth={2} />
+                </button>
+              </div>
+            )
+          })}
+          {subtasks.length === 0 && (
+            <p className="text-[12px]" style={{ color: 'var(--text-tertiary)' }}>
+              No subtasks yet. Add one below.
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="flex gap-1.5">
+        <input
+          value={newTitle}
+          onChange={e => setNewTitle(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') addSubtask() }}
+          placeholder="Add subtask…"
+          className="flex-1 text-[12px] outline-none rounded-[7px] px-2.5 py-1.5"
+          style={{
+            color:      'var(--text-primary)',
+            background: 'var(--bg-secondary)',
+            border:     '1px solid var(--border)',
+          }}
+          aria-label="New subtask title"
+        />
+        <button
+          onClick={addSubtask}
+          disabled={!newTitle.trim() || adding}
+          className="w-7 h-7 flex items-center justify-center rounded-[7px] transition-all disabled:opacity-40 hover:opacity-90"
+          style={{ background: 'var(--color-blue)', flexShrink: 0 }}
+          aria-label="Add subtask"
+        >
+          {adding
+            ? <Loader2 size={12} strokeWidth={2} className="animate-spin" style={{ color: '#fff' }} />
+            : <Plus size={13} strokeWidth={2.5} style={{ color: '#fff' }} />
+          }
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── DependenciesSection ────────────────────────────────────────────────────────
+
+function DependenciesSection({ taskId }: { taskId: string }) {
+  const [blockedBy,  setBlockedBy]  = useState<DepTask[]>([])
+  const [blocks,     setBlocks]     = useState<DepTask[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const [showPicker, setShowPicker] = useState<'blocked_by' | 'blocks' | null>(null)
+  const [search,     setSearch]     = useState('')
+  const [searchRes,  setSearchRes]  = useState<DepTask[]>([])
+  const [searching,  setSearching]  = useState(false)
+
+  const fetchDeps = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/dependencies`)
+      if (res.ok) {
+        const data = await res.json()
+        setBlockedBy(data.blockedBy ?? [])
+        setBlocks(data.blocks ?? [])
+      }
+    } finally {
+      setLoading(false)
+    }
+  }, [taskId])
+
+  useEffect(() => { fetchDeps() }, [fetchDeps])
+
+  useEffect(() => {
+    if (!search.trim()) { setSearchRes([]); return }
+    const t = setTimeout(async () => {
+      setSearching(true)
+      try {
+        const res = await fetch(`/api/tasks?q=${encodeURIComponent(search)}`)
+        if (res.ok) {
+          const all: DepTask[] = await res.json()
+          setSearchRes(all.filter(t => t.id !== taskId).slice(0, 8))
+        }
+      } finally {
+        setSearching(false)
+      }
+    }, 300)
+    return () => clearTimeout(t)
+  }, [search, taskId])
+
+  async function addDep(depTask: DepTask) {
+    const isBlockedBy = showPicker === 'blocked_by'
+    const payload = isBlockedBy
+      ? { taskId, dependsOnTaskId: depTask.id }
+      : { taskId: depTask.id, dependsOnTaskId: taskId }
+
+    const res = await fetch('/api/task-dependencies', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    })
+
+    if (res.ok) {
+      if (isBlockedBy) {
+        setBlockedBy(prev => [...prev, depTask])
+      } else {
+        setBlocks(prev => [...prev, depTask])
+      }
+    }
+    setShowPicker(null)
+    setSearch('')
+    setSearchRes([])
+  }
+
+  async function removeDep(depTask: DepTask, direction: 'blocked_by' | 'blocks') {
+    const payload = direction === 'blocked_by'
+      ? { taskId, dependsOnTaskId: depTask.id }
+      : { taskId: depTask.id, dependsOnTaskId: taskId }
+
+    await fetch('/api/task-dependencies', {
+      method:  'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    })
+
+    if (direction === 'blocked_by') {
+      setBlockedBy(prev => prev.filter(t => t.id !== depTask.id))
+    } else {
+      setBlocks(prev => prev.filter(t => t.id !== depTask.id))
+    }
+  }
+
+  return (
+    <div className="mb-5">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5">
+          <Link2 size={13} strokeWidth={1.5} style={{ color: 'var(--text-tertiary)' }} />
+          <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>
+            Dependencies
+          </span>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-1.5 py-1">
+          <Loader2 size={12} strokeWidth={2} className="animate-spin" style={{ color: 'var(--text-tertiary)' }} />
+        </div>
+      ) : (
+        <>
+          {/* Blocked by */}
+          <div className="mb-2">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>Blocked by</span>
+              <button
+                onClick={() => { setShowPicker('blocked_by'); setSearch('') }}
+                className="text-[11px] flex items-center gap-0.5 hover:opacity-70 transition-opacity"
+                style={{ color: 'var(--color-blue)' }}
+                aria-label="Add blocked-by dependency"
+              >
+                <Plus size={10} strokeWidth={2.5} /> Add
+              </button>
+            </div>
+            {blockedBy.length === 0 ? (
+              <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>None</p>
+            ) : (
+              <div className="flex flex-col gap-1">
+                {blockedBy.map(t => (
+                  <DepRow key={t.id} task={t} onRemove={() => removeDep(t, 'blocked_by')} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Blocks */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>Blocks</span>
+              <button
+                onClick={() => { setShowPicker('blocks'); setSearch('') }}
+                className="text-[11px] flex items-center gap-0.5 hover:opacity-70 transition-opacity"
+                style={{ color: 'var(--color-blue)' }}
+                aria-label="Add blocks dependency"
+              >
+                <Plus size={10} strokeWidth={2.5} /> Add
+              </button>
+            </div>
+            {blocks.length === 0 ? (
+              <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>None</p>
+            ) : (
+              <div className="flex flex-col gap-1">
+                {blocks.map(t => (
+                  <DepRow key={t.id} task={t} onRemove={() => removeDep(t, 'blocks')} />
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Picker */}
+      {showPicker && (
+        <div
+          className="mt-2 rounded-[10px] p-3"
+          style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
+              {showPicker === 'blocked_by' ? 'Pick a blocking task' : 'Pick a task to block'}
+            </span>
+            <button
+              onClick={() => { setShowPicker(null); setSearch(''); setSearchRes([]) }}
+              className="hover:opacity-70"
+              style={{ color: 'var(--text-tertiary)' }}
+              aria-label="Close picker"
+            >
+              <X size={12} strokeWidth={2} />
+            </button>
+          </div>
+          <input
+            autoFocus
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search tasks…"
+            className="w-full text-[12px] outline-none rounded-[7px] px-2.5 py-1.5 mb-2"
+            style={{
+              color:      'var(--text-primary)',
+              background: 'var(--bg-primary)',
+              border:     '1px solid var(--border)',
+            }}
+            aria-label="Search tasks for dependency"
+          />
+          {searching && (
+            <div className="flex items-center gap-1.5">
+              <Loader2 size={11} strokeWidth={2} className="animate-spin" style={{ color: 'var(--text-tertiary)' }} />
+              <span className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>Searching…</span>
+            </div>
+          )}
+          <div className="flex flex-col gap-1 max-h-36 overflow-y-auto">
+            {searchRes.map(t => (
+              <button
+                key={t.id}
+                onClick={() => addDep(t)}
+                className="text-left text-[12px] px-2.5 py-1.5 rounded-[6px] transition-all hover:opacity-80"
+                style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
+              >
+                {t.title}
+              </button>
+            ))}
+            {!searching && search.trim() && searchRes.length === 0 && (
+              <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>No tasks found</p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DepRow({ task, onRemove }: { task: DepTask; onRemove: () => void }) {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <div
+      className="flex items-center gap-2"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <span
+        className="flex-1 text-[12px] truncate"
+        style={{ color: 'var(--text-secondary)' }}
+        title={task.title}
+      >
+        {task.title}
+      </span>
+      <span className="text-[10px] px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: 'var(--bg-secondary)', color: 'var(--text-tertiary)' }}>
+        {task.status.replace('_', ' ')}
+      </span>
+      <button
+        onClick={onRemove}
+        style={{
+          opacity:    hovered ? 1 : 0,
+          transition: 'opacity 150ms',
+          color:      'var(--text-tertiary)',
+          padding:    2,
+          flexShrink: 0,
+        }}
+        aria-label="Remove dependency"
+        className="hover:opacity-70"
+      >
+        <X size={11} strokeWidth={2} />
+      </button>
+    </div>
+  )
+}
+
+// ── CustomFieldsSection ────────────────────────────────────────────────────────
+
+function CustomFieldsSection({ taskId, projectId }: { taskId: string; projectId: string }) {
+  const [fields,  setFields]  = useState<CustomFieldDef[]>([])
+  const [values,  setValues]  = useState<Record<string, string | null>>({})
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const [defsRes, valsRes] = await Promise.all([
+          fetch(`/api/projects/${projectId}/custom-fields`),
+          fetch(`/api/tasks/${taskId}/custom-field-values`),
+        ])
+        if (defsRes.ok) setFields(await defsRes.json())
+        if (valsRes.ok) {
+          const vals: CustomFieldVal[] = await valsRes.json()
+          const map: Record<string, string | null> = {}
+          for (const v of vals) map[v.fieldDefinitionId] = v.value
+          setValues(map)
+        }
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [taskId, projectId])
+
+  async function updateValue(fieldDefinitionId: string, value: string | null) {
+    setValues(prev => ({ ...prev, [fieldDefinitionId]: value }))
+    await fetch(`/api/tasks/${taskId}/custom-field-values`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ fieldDefinitionId, value }),
+    })
+  }
+
+  if (loading || fields.length === 0) return null
+
+  return (
+    <div className="mb-5">
+      <div className="flex items-center gap-1.5 mb-2">
+        <Sliders size={13} strokeWidth={1.5} style={{ color: 'var(--text-tertiary)' }} />
+        <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>
+          Custom Fields
+        </span>
+      </div>
+      <div className="flex flex-col gap-2">
+        {fields.map(field => (
+          <div key={field.id} className="flex items-center gap-3">
+            <span
+              className="text-[12px] font-medium flex-shrink-0"
+              style={{ width: 90, color: 'var(--text-tertiary)' }}
+              title={field.name}
+            >
+              {field.name}
+            </span>
+            <div className="flex-1">
+              {field.type === 'checkbox' ? (
+                <button
+                  onClick={() => updateValue(field.id, values[field.id] === 'true' ? 'false' : 'true')}
+                  className="w-4 h-4 rounded border flex items-center justify-center transition-all"
+                  style={{
+                    background:  values[field.id] === 'true' ? 'var(--color-blue)' : 'transparent',
+                    borderColor: values[field.id] === 'true' ? 'var(--color-blue)' : 'var(--border)',
+                  }}
+                  aria-label={`Toggle ${field.name}`}
+                >
+                  {values[field.id] === 'true' && <Check size={9} strokeWidth={3} style={{ color: '#fff' }} />}
+                </button>
+              ) : field.type === 'select' ? (
+                <select
+                  value={values[field.id] ?? ''}
+                  onChange={e => updateValue(field.id, e.target.value || null)}
+                  style={selectStyle}
+                  aria-label={field.name}
+                >
+                  <option value="">—</option>
+                  {(field.options ?? []).map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
+                  value={values[field.id] ?? ''}
+                  onChange={e => updateValue(field.id, e.target.value || null)}
+                  style={{
+                    ...selectStyle,
+                    width: '100%',
+                  }}
+                  aria-label={field.name}
+                />
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

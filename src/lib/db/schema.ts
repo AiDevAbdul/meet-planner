@@ -97,21 +97,25 @@ export const meetings = pgTable('meetings', {
   createdAt:   timestamp('created_at').defaultNow().notNull(),
 })
 
+export const customFieldTypeEnum = pgEnum('custom_field_type', ['text', 'number', 'date', 'select', 'checkbox'])
+
 export const tasks = pgTable('tasks', {
-  id:           uuid('id').primaryKey().defaultRandom(),
-  title:        text('title').notNull(),
-  description:  text('description'),
-  priority:     priorityEnum('priority').default('normal').notNull(),
-  status:       statusEnum('status').default('triage').notNull(),
-  assigneeId:   uuid('assignee_id').references(() => users.id),
-  createdBy:    uuid('created_by').references(() => users.id),
-  meetingId:    uuid('meeting_id').references(() => meetings.id),
-  departmentId: uuid('department_id').references(() => departments.id),
-  projectId:    uuid('project_id').references(() => projects.id),
-  dueDate:      date('due_date'),
-  position:     integer('position').default(0),
-  createdAt:    timestamp('created_at').defaultNow().notNull(),
-  updatedAt:    timestamp('updated_at').defaultNow().notNull(),
+  id:             uuid('id').primaryKey().defaultRandom(),
+  title:          text('title').notNull(),
+  description:    text('description'),
+  priority:       priorityEnum('priority').default('normal').notNull(),
+  status:         statusEnum('status').default('triage').notNull(),
+  assigneeId:     uuid('assignee_id').references(() => users.id),
+  createdBy:      uuid('created_by').references(() => users.id),
+  meetingId:      uuid('meeting_id').references(() => meetings.id),
+  departmentId:   uuid('department_id').references(() => departments.id),
+  projectId:      uuid('project_id').references(() => projects.id),
+  parentTaskId:   uuid('parent_task_id').references((): any => tasks.id),
+  recurrenceRule: text('recurrence_rule'),
+  dueDate:        date('due_date'),
+  position:       integer('position').default(0),
+  createdAt:      timestamp('created_at').defaultNow().notNull(),
+  updatedAt:      timestamp('updated_at').defaultNow().notNull(),
 })
 
 export const channels = pgTable('channels', {
@@ -194,6 +198,8 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
   meeting:    one(meetings,    { fields: [tasks.meetingId],    references: [meetings.id] }),
   department: one(departments, { fields: [tasks.departmentId], references: [departments.id] }),
   project:    one(projects,    { fields: [tasks.projectId],    references: [projects.id] }),
+  parent:     one(tasks,       { fields: [tasks.parentTaskId], references: [tasks.id],       relationName: 'parent_child' }),
+  subtasks:   many(tasks,      { relationName: 'parent_child' }),
   milestones: many(milestones),
 }))
 
@@ -304,3 +310,44 @@ export const projectMembersRelations = relations(projectMembers, ({ one }) => ({
   project: one(projects, { fields: [projectMembers.projectId], references: [projects.id] }),
   user:    one(users,    { fields: [projectMembers.userId],    references: [users.id] }),
 }))
+
+// ─── Subtasks / Dependencies ───────────────────────────────────────────────────
+export const taskDependencies = pgTable('task_dependencies', {
+  taskId:          uuid('task_id').notNull().references(() => tasks.id, { onDelete: 'cascade' }),
+  dependsOnTaskId: uuid('depends_on_task_id').notNull().references(() => tasks.id, { onDelete: 'cascade' }),
+  createdAt:       timestamp('created_at').defaultNow().notNull(),
+}, (t) => [primaryKey({ columns: [t.taskId, t.dependsOnTaskId] })])
+
+// ─── Custom Fields ─────────────────────────────────────────────────────────────
+export const customFieldDefinitions = pgTable('custom_field_definitions', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  name:      text('name').notNull(),
+  type:      customFieldTypeEnum('type').notNull(),
+  options:   jsonb('options').$type<string[]>(),
+  position:  integer('position').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+export const customFieldValues = pgTable('custom_field_values', {
+  taskId:            uuid('task_id').notNull().references(() => tasks.id, { onDelete: 'cascade' }),
+  fieldDefinitionId: uuid('field_definition_id').notNull().references(() => customFieldDefinitions.id, { onDelete: 'cascade' }),
+  value:             text('value'),
+  updatedAt:         timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [primaryKey({ columns: [t.taskId, t.fieldDefinitionId] })])
+
+export const customFieldDefinitionsRelations = relations(customFieldDefinitions, ({ one }) => ({
+  project: one(projects, { fields: [customFieldDefinitions.projectId], references: [projects.id] }),
+}))
+
+// ─── Task Templates ────────────────────────────────────────────────────────────
+export const taskTemplates = pgTable('task_templates', {
+  id:          uuid('id').primaryKey().defaultRandom(),
+  projectId:   uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+  name:        text('name').notNull(),
+  description: text('description'),
+  priority:    priorityEnum('priority').default('normal').notNull(),
+  fields:      jsonb('fields').$type<Record<string, unknown>>(),
+  createdBy:   uuid('created_by').references(() => users.id),
+  createdAt:   timestamp('created_at').defaultNow().notNull(),
+})

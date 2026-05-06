@@ -56,6 +56,7 @@ export type TaskRow = {
   createdBy:    string | null
   meetingId:    string | null
   departmentId: string | null
+  projectId:    string | null
   dueDate:      string | null
   position:     number | null
   createdAt:    Date | string
