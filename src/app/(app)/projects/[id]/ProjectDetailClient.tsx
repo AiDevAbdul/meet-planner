@@ -7,9 +7,10 @@ import {
   Folder, ArrowLeft, Settings, Users, CheckSquare,
   FileText, Calendar, ChevronDown, MoreHorizontal,
   Plus, AlertCircle, Clock, CheckCircle2,
-  Edit2, Trash2, UserPlus, Sparkles, BookOpen, DollarSign,
+  Edit2, Trash2, UserPlus, Sparkles, BookOpen, DollarSign, Zap,
 } from 'lucide-react'
 import { Avatar } from '@/components/layout/Sidebar'
+import { AutomationsTab } from './AutomationsTab'
 
 const STATUS_OPTIONS = [
   { value: 'planning',  label: 'Planning',  color: 'var(--color-blue)' },
@@ -74,7 +75,7 @@ type Project = {
   ownerImage: string | null
 }
 
-type Tab = 'overview' | 'tasks' | 'meetings' | 'members' | 'documents' | 'settings'
+type Tab = 'overview' | 'tasks' | 'meetings' | 'members' | 'documents' | 'automations' | 'settings'
 
 export function ProjectDetailClient({
   project: initialProject,
@@ -120,8 +121,9 @@ export function ProjectDetailClient({
     { id: 'tasks',      label: 'Tasks',      icon: CheckSquare, count: taskStats.total },
     { id: 'meetings',   label: 'Meetings',   icon: FileText,    count: meetings.length },
     { id: 'members',    label: 'Members',    icon: Users,       count: members.length },
-    { id: 'documents',  label: 'Documents',  icon: BookOpen,    href: `/projects/${project.id}/documents` },
-    { id: 'settings',   label: 'Settings',   icon: Settings },
+    { id: 'documents',   label: 'Documents',    icon: BookOpen,  href: `/projects/${project.id}/documents` },
+    { id: 'automations', label: 'Automations',  icon: Zap },
+    { id: 'settings',    label: 'Settings',     icon: Settings },
   ]
 
   return (
@@ -260,6 +262,9 @@ export function ProjectDetailClient({
             currentUserId={currentUserId}
             onMembersChange={setMembers}
           />
+        )}
+        {activeTab === 'automations' && (
+          <AutomationsTab projectId={project.id} />
         )}
         {activeTab === 'settings' && (
           <SettingsTab project={project} onUpdate={setProject} />

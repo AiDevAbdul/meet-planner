@@ -26,9 +26,36 @@ export const notifTypeEnum = pgEnum('notif_type', [
   'meeting_request_rejected', 'meeting_reminder',
   'minutes_ready_for_review', 'milestone_due', 'goal_checkin_due',
   'budget_alert_80', 'budget_alert_100',
+  'automation_triggered',
 ])
 
 export const milestoneStatusEnum = pgEnum('milestone_status', ['pending', 'in_progress', 'completed'])
+
+export const automationTriggerEnum = pgEnum('automation_trigger', [
+  'task_status_changed',
+  'task_created',
+  'task_overdue',
+  'task_assigned',
+  'task_priority_changed',
+  'due_date_approaching',
+  'milestone_completed',
+  'comment_added',
+  'project_status_changed',
+  'time_entry_logged',
+])
+
+export const automationActionEnum = pgEnum('automation_action', [
+  'change_task_status',
+  'assign_task',
+  'change_task_priority',
+  'send_notification',
+  'create_task',
+  'post_to_channel',
+  'set_due_date_offset',
+  'move_to_project',
+  'add_tag',
+  'mark_milestone_done',
+])
 
 export const meetingRequestStatusEnum = pgEnum('meeting_request_status', [
   'draft', 'pending_review', 'approved', 'rejected', 'sent',
@@ -519,4 +546,27 @@ export const timeEntriesRelations = relations(timeEntries, ({ one }) => ({
 export const projectExpensesRelations = relations(projectExpenses, ({ one }) => ({
   project: one(projects, { fields: [projectExpenses.projectId], references: [projects.id] }),
   creator: one(users,    { fields: [projectExpenses.createdBy],  references: [users.id] }),
+}))
+
+// ─── Automations ──────────────────────────────────────────────────────────────
+
+export const automations = pgTable('automations', {
+  id:            uuid('id').primaryKey().defaultRandom(),
+  projectId:     uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  name:          text('name').notNull(),
+  triggerType:   automationTriggerEnum('trigger_type').notNull(),
+  triggerConfig: jsonb('trigger_config').default({}).notNull(),
+  actionType:    automationActionEnum('action_type').notNull(),
+  actionConfig:  jsonb('action_config').default({}).notNull(),
+  enabled:       boolean('enabled').default(true).notNull(),
+  lastRunAt:     timestamp('last_run_at'),
+  runCount:      integer('run_count').default(0).notNull(),
+  createdBy:     uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt:     timestamp('created_at').defaultNow().notNull(),
+  updatedAt:     timestamp('updated_at').defaultNow().notNull(),
+})
+
+export const automationsRelations = relations(automations, ({ one }) => ({
+  project: one(projects, { fields: [automations.projectId], references: [projects.id] }),
+  creator: one(users,    { fields: [automations.createdBy], references: [users.id] }),
 }))
