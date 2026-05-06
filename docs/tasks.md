@@ -151,7 +151,7 @@
 ---
 
 ### Task 7 — Phase 4C: Subtasks + Task Dependencies + Custom Fields
-**Status**: 🔲 TODO
+**Status**: ✅ DONE (commit `c01119b`)
 
 **Depends on**: Task 5 (projects for custom field definitions)
 
