@@ -265,7 +265,7 @@
 ---
 
 ### Task 14 — Phase 5E: AI Project Planner + Risk Detector + Standup Bot
-**Status**: 🔲 TODO
+**Status**: ✅ DONE (commit `e60fe43`)
 
 **Depends on**: Tasks 5, 9, 3, 12
 
