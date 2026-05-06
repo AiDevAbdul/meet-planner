@@ -12,20 +12,21 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   const [project] = await db
     .select({
-      id:          projects.id,
-      name:        projects.name,
-      description: projects.description,
-      status:      projects.status,
-      ownerId:     projects.ownerId,
-      color:       projects.color,
-      icon:        projects.icon,
-      startDate:   projects.startDate,
-      endDate:     projects.endDate,
-      budget:      projects.budget,
-      createdAt:   projects.createdAt,
-      updatedAt:   projects.updatedAt,
-      ownerName:   users.name,
-      ownerImage:  users.image,
+      id:             projects.id,
+      name:           projects.name,
+      description:    projects.description,
+      status:         projects.status,
+      ownerId:        projects.ownerId,
+      color:          projects.color,
+      icon:           projects.icon,
+      startDate:      projects.startDate,
+      endDate:        projects.endDate,
+      budget:         projects.budget,
+      standupEnabled: projects.standupEnabled,
+      createdAt:      projects.createdAt,
+      updatedAt:      projects.updatedAt,
+      ownerName:      users.name,
+      ownerImage:     users.image,
     })
     .from(projects)
     .leftJoin(users, eq(projects.ownerId, users.id))
@@ -78,7 +79,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params
   const body = await req.json()
 
-  const allowed = ['name', 'description', 'status', 'color', 'icon', 'startDate', 'endDate', 'budget']
+  const allowed = ['name', 'description', 'status', 'color', 'icon', 'startDate', 'endDate', 'budget', 'standupEnabled']
   const updates: Record<string, unknown> = { updatedAt: new Date() }
   for (const key of allowed) {
     if (key in body) updates[key === 'startDate' ? 'startDate' : key === 'endDate' ? 'endDate' : key] = body[key]

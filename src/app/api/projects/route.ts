@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
-  const { name, description, color, icon, startDate, endDate, budget } = body
+  const { name, description, color, icon, startDate, endDate, budget, aiPlan } = body
 
   if (!name?.trim()) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
 
@@ -104,6 +104,26 @@ export async function POST(req: NextRequest) {
     userId:    session.user.id,
     role:      'owner',
   })
+
+  // Auto-create tasks from AI plan if provided
+  if (aiPlan?.suggestedTasks?.length) {
+    const base = startDate ? new Date(startDate) : new Date()
+    const taskRows = (aiPlan.suggestedTasks as { title: string; description?: string; priority?: string; daysFromStart?: number }[]).map((t, i) => {
+      const due = new Date(base)
+      due.setDate(due.getDate() + (t.daysFromStart ?? i * 3))
+      return {
+        title:       t.title,
+        description: t.description ?? null,
+        priority:    (['critical', 'high', 'normal', 'low'].includes(t.priority ?? '') ? t.priority : 'normal') as 'critical' | 'high' | 'normal' | 'low',
+        status:      'todo' as const,
+        projectId:   project.id,
+        createdBy:   session.user.id,
+        dueDate:     due.toISOString().split('T')[0],
+        position:    i,
+      }
+    })
+    await db.insert(tasks).values(taskRows)
+  }
 
   return NextResponse.json(project, { status: 201 })
 }

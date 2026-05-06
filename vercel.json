@@ -23,6 +23,18 @@
     {
       "path": "/api/cron/automations",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/project-risk",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/standup",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/standup-summary",
+      "schedule": "30 9 * * *"
     }
   ]
 }

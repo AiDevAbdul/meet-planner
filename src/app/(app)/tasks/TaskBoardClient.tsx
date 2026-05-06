@@ -445,6 +445,7 @@ export function TaskBoardClient({ initialTasks, users, departments, currentUserI
         <AddTaskModal
           users={users}
           departments={departments}
+          projectId={searchParams.get('projectId')}
           onClose={() => setShowAddModal(false)}
           onCreated={addTask}
         />

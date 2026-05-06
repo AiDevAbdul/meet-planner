@@ -1,17 +1,20 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { X, Plus, Loader2 } from 'lucide-react'
+import { X, Plus, Loader2, Sparkles } from 'lucide-react'
 import type { TaskRow, UserRow, DeptRow } from './TaskBoardClient'
+
+type Suggestion = { userId: string; name: string; reason: string }
 
 type Props = {
   users:       UserRow[]
   departments: DeptRow[]
+  projectId?:  string | null
   onClose:     () => void
   onCreated:   (task: TaskRow) => void
 }
 
-export function AddTaskModal({ users, departments, onClose, onCreated }: Props) {
+export function AddTaskModal({ users, departments, projectId, onClose, onCreated }: Props) {
   const [mounted, setMounted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState<string | null>(null)
@@ -22,6 +25,9 @@ export function AddTaskModal({ users, departments, onClose, onCreated }: Props) 
   const [priority,     setPriority]     = useState('normal')
   const [dueDate,      setDueDate]      = useState('')
   const [departmentId, setDepartmentId] = useState('')
+
+  const [suggesting,   setSuggesting]   = useState(false)
+  const [suggestions,  setSuggestions]  = useState<Suggestion[]>([])
 
   const titleRef = useRef<HTMLInputElement>(null)
 
@@ -44,6 +50,26 @@ export function AddTaskModal({ users, departments, onClose, onCreated }: Props) 
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
+
+  async function suggestAssignee() {
+    if (!title.trim()) return
+    setSuggesting(true)
+    setSuggestions([])
+    try {
+      const res = await fetch('/api/tasks/suggest-assignee', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, description, priority, projectId: projectId ?? null }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setSuggestions(data.suggestions ?? [])
+        if (data.suggestions?.[0]?.userId) setAssigneeId(data.suggestions[0].userId)
+      }
+    } finally {
+      setSuggesting(false)
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -209,10 +235,26 @@ export function AddTaskModal({ users, departments, onClose, onCreated }: Props) 
             </div>
 
             {/* Assignee */}
-            <FormField label="Assignee">
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-[12px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                  Assignee
+                </label>
+                <button
+                  type="button"
+                  onClick={suggestAssignee}
+                  disabled={suggesting || !title.trim()}
+                  className="flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-[6px] disabled:opacity-50 transition-opacity"
+                  style={{ background: 'rgba(0,122,255,0.08)', color: 'var(--color-blue)' }}
+                  aria-label="AI suggest assignee"
+                >
+                  {suggesting ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />}
+                  {suggesting ? 'Suggesting…' : 'AI Suggest'}
+                </button>
+              </div>
               <select
                 value={assigneeId}
-                onChange={e => setAssigneeId(e.target.value)}
+                onChange={e => { setAssigneeId(e.target.value); setSuggestions([]) }}
                 aria-label="Assignee"
                 style={inputStyle}
               >
@@ -221,7 +263,30 @@ export function AddTaskModal({ users, departments, onClose, onCreated }: Props) 
                   <option key={u.id} value={u.id}>{u.name}</option>
                 ))}
               </select>
-            </FormField>
+              {suggestions.length > 0 && (
+                <div
+                  className="rounded-[8px] p-2.5 text-[12px] flex flex-col gap-1.5"
+                  style={{ background: 'rgba(0,122,255,0.06)', border: '1px solid rgba(0,122,255,0.15)' }}
+                >
+                  {suggestions.map(s => (
+                    <button
+                      key={s.userId}
+                      type="button"
+                      onClick={() => { setAssigneeId(s.userId); setSuggestions([]) }}
+                      className="text-left flex items-start gap-1.5 hover:opacity-80 transition-opacity"
+                    >
+                      <span
+                        className={`font-medium flex-shrink-0 ${assigneeId === s.userId ? 'underline' : ''}`}
+                        style={{ color: 'var(--color-blue)' }}
+                      >
+                        {s.name}
+                      </span>
+                      <span style={{ color: 'var(--text-secondary)' }}>— {s.reason}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* Department */}
             <FormField label="Department">

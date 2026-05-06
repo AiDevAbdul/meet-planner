@@ -27,7 +27,10 @@ export const notifTypeEnum = pgEnum('notif_type', [
   'minutes_ready_for_review', 'milestone_due', 'goal_checkin_due',
   'budget_alert_80', 'budget_alert_100',
   'automation_triggered', 'intake_form_submitted',
+  'risk_detected', 'standup_summary',
 ])
+
+export const riskLevelEnum = pgEnum('risk_level', ['low', 'medium', 'high', 'critical'])
 
 export const intakeSubmissionStatusEnum = pgEnum('intake_submission_status', [
   'new', 'reviewed', 'triaged',
@@ -71,18 +74,19 @@ export const minutesStatusEnum = pgEnum('minutes_status', [
 
 // ─── Tables ───────────────────────────────────────────────────────────────────
 export const projects = pgTable('projects', {
-  id:          uuid('id').primaryKey().defaultRandom(),
-  name:        text('name').notNull(),
-  description: text('description'),
-  status:      projectStatusEnum('status').default('planning').notNull(),
-  ownerId:     uuid('owner_id'),
-  color:       text('color').default('#007AFF').notNull(),
-  icon:        text('icon').default('Folder').notNull(),
-  startDate:   date('start_date'),
-  endDate:     date('end_date'),
-  budget:      integer('budget'),
-  createdAt:   timestamp('created_at').defaultNow().notNull(),
-  updatedAt:   timestamp('updated_at').defaultNow().notNull(),
+  id:             uuid('id').primaryKey().defaultRandom(),
+  name:           text('name').notNull(),
+  description:    text('description'),
+  status:         projectStatusEnum('status').default('planning').notNull(),
+  ownerId:        uuid('owner_id'),
+  color:          text('color').default('#007AFF').notNull(),
+  icon:           text('icon').default('Folder').notNull(),
+  startDate:      date('start_date'),
+  endDate:        date('end_date'),
+  budget:         integer('budget'),
+  standupEnabled: boolean('standup_enabled').default(false).notNull(),
+  createdAt:      timestamp('created_at').defaultNow().notNull(),
+  updatedAt:      timestamp('updated_at').defaultNow().notNull(),
 })
 
 export const projectMembers = pgTable('project_members', {
@@ -342,6 +346,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   documents:       many(documents),
   timeEntries:     many(timeEntries),
   projectExpenses: many(projectExpenses),
+  riskSnapshots:   many(projectRiskSnapshots),
 }))
 
 export const projectMembersRelations = relations(projectMembers, ({ one }) => ({
@@ -614,4 +619,19 @@ export const intakeSubmissionsRelations = relations(intakeSubmissions, ({ one })
   form:    one(intakeForms, { fields: [intakeSubmissions.formId],    references: [intakeForms.id] }),
   project: one(projects,    { fields: [intakeSubmissions.projectId], references: [projects.id] }),
   task:    one(tasks,       { fields: [intakeSubmissions.taskId],    references: [tasks.id] }),
+}))
+
+// ─── Project Risk Snapshots ───────────────────────────────────────────────────
+
+export const projectRiskSnapshots = pgTable('project_risk_snapshots', {
+  id:          uuid('id').primaryKey().defaultRandom(),
+  projectId:   uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  riskLevel:   riskLevelEnum('risk_level').notNull(),
+  explanation: text('explanation').notNull(),
+  factors:     jsonb('factors').$type<string[]>().default([]).notNull(),
+  createdAt:   timestamp('created_at').defaultNow().notNull(),
+})
+
+export const projectRiskSnapshotsRelations = relations(projectRiskSnapshots, ({ one }) => ({
+  project: one(projects, { fields: [projectRiskSnapshots.projectId], references: [projects.id] }),
 }))

@@ -385,11 +385,17 @@ function CreateProjectModal({
       const res = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, description, color, startDate: startDate || null, endDate: endDate || null }),
+        body: JSON.stringify({
+          name, description, color,
+          startDate: startDate || null,
+          endDate:   endDate   || null,
+          aiPlan:    aiPlan    ?? null,
+        }),
       })
       if (res.ok) {
         const project = await res.json()
-        onCreate({ ...project, memberCount: 1, taskTotal: 0, taskDone: 0, ownerName: null, ownerImage: null })
+        const taskTotal = aiPlan?.suggestedTasks?.length ?? 0
+        onCreate({ ...project, memberCount: 1, taskTotal, taskDone: 0, ownerName: null, ownerImage: null })
       }
     })
   }
@@ -474,14 +480,20 @@ function CreateProjectModal({
               className="rounded-[8px] p-3 text-xs"
               style={{ background: 'rgba(0,122,255,0.08)', border: '1px solid rgba(0,122,255,0.2)' }}
             >
-              <p className="font-medium mb-1" style={{ color: 'var(--color-blue)' }}>AI Plan Preview</p>
+              <p className="font-medium mb-1" style={{ color: 'var(--color-blue)' }}>
+                AI Plan Ready — {aiPlan.suggestedTasks.length} tasks will be created
+              </p>
               <p className="mb-2" style={{ color: 'var(--text-secondary)' }}>{aiPlan.summary}</p>
-              <p className="font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Suggested tasks ({aiPlan.suggestedTasks.length})</p>
               {aiPlan.suggestedTasks.slice(0, 4).map((t, i) => (
                 <p key={i} className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>• {t.title}</p>
               ))}
               {aiPlan.suggestedTasks.length > 4 && (
                 <p className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>+{aiPlan.suggestedTasks.length - 4} more…</p>
+              )}
+              {aiPlan.risks?.length > 0 && (
+                <p className="mt-2 text-[11px]" style={{ color: 'var(--color-orange)' }}>
+                  Risks: {aiPlan.risks.join(' · ')}
+                </p>
               )}
             </div>
           )}

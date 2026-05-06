@@ -8,6 +8,7 @@ import {
   FileText, Calendar, ChevronDown, MoreHorizontal,
   Plus, AlertCircle, Clock, CheckCircle2,
   Edit2, Trash2, UserPlus, Sparkles, BookOpen, DollarSign, Zap, ClipboardList,
+  ShieldAlert, RefreshCw, Bot,
 } from 'lucide-react'
 import { Avatar } from '@/components/layout/Sidebar'
 import { AutomationsTab } from './AutomationsTab'
@@ -72,8 +73,17 @@ type Project = {
   startDate: string | null
   endDate: string | null
   budget: number | null
+  standupEnabled: boolean
   ownerName: string | null
   ownerImage: string | null
+}
+
+type RiskSnapshot = {
+  id: string
+  riskLevel: 'low' | 'medium' | 'high' | 'critical'
+  explanation: string
+  factors: string[]
+  createdAt: string
 }
 
 type Tab = 'overview' | 'tasks' | 'meetings' | 'members' | 'documents' | 'automations' | 'forms' | 'settings'
@@ -349,11 +359,101 @@ function BudgetSection({ projectId, projectBudget }: { projectId: string; projec
   )
 }
 
+const RISK_COLORS: Record<string, string> = {
+  low:      'var(--color-green)',
+  medium:   'var(--color-orange)',
+  high:     'var(--color-red)',
+  critical: '#FF2D55',
+}
+
+function RiskBanner({ projectId }: { projectId: string }) {
+  const [risk, setRisk] = useState<RiskSnapshot | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [analyzing, setAnalyzing] = useState(false)
+
+  useEffect(() => {
+    fetch(`/api/projects/${projectId}/risk`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { setRisk(d); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [projectId])
+
+  async function analyze() {
+    setAnalyzing(true)
+    const res = await fetch(`/api/projects/${projectId}/risk`, { method: 'POST' })
+    if (res.ok) setRisk(await res.json())
+    setAnalyzing(false)
+  }
+
+  if (loading) return null
+
+  const color = risk ? RISK_COLORS[risk.riskLevel] : 'var(--text-tertiary)'
+
+  return (
+    <div
+      className="glass-card p-4"
+      style={{ border: `1px solid ${color}30` }}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <ShieldAlert size={15} style={{ color }} />
+          <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>AI Risk Assessment</h2>
+          {risk && (
+            <span
+              className="text-[11px] font-semibold capitalize px-2 py-0.5 rounded-full"
+              style={{ background: `${color}15`, color }}
+            >
+              {risk.riskLevel}
+            </span>
+          )}
+        </div>
+        <button
+          onClick={analyze}
+          disabled={analyzing}
+          className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-[6px] disabled:opacity-50"
+          style={{ background: 'var(--bg-secondary)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+          aria-label="Analyze risk"
+        >
+          <RefreshCw size={12} className={analyzing ? 'animate-spin' : ''} />
+          {analyzing ? 'Analyzing…' : 'Analyze'}
+        </button>
+      </div>
+
+      {risk ? (
+        <>
+          <p className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>{risk.explanation}</p>
+          {risk.factors?.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {risk.factors.map((f, i) => (
+                <span
+                  key={i}
+                  className="text-[11px] px-2 py-0.5 rounded-full"
+                  style={{ background: 'var(--bg-secondary)', color: 'var(--text-tertiary)', border: '1px solid var(--border)' }}
+                >
+                  {f}
+                </span>
+              ))}
+            </div>
+          )}
+          <p className="text-[11px] mt-2" style={{ color: 'var(--text-tertiary)' }}>
+            Last analyzed {new Date(risk.createdAt).toLocaleDateString()}
+          </p>
+        </>
+      ) : (
+        <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
+          No risk analysis yet. Click Analyze to get an AI assessment.
+        </p>
+      )}
+    </div>
+  )
+}
+
 function OverviewTab({ project, taskStats, pct, members }: { project: Project; taskStats: { total: number; done: number; overdue: number }; pct: number; members: Member[] }) {
   return (
     <div className="grid grid-cols-3 gap-6">
       {/* Stats */}
       <div className="col-span-2 flex flex-col gap-4">
+        <RiskBanner projectId={project.id} />
         <div className="glass-card p-5">
           <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Project Progress</h2>
           <div className="flex items-center gap-3 mb-2">
@@ -647,6 +747,7 @@ function SettingsTab({ project, onUpdate }: { project: Project; onUpdate: (p: Pr
   const [startDate, setStartDate] = useState(project.startDate ?? '')
   const [endDate, setEndDate] = useState(project.endDate ?? '')
   const [budget, setBudget] = useState(project.budget?.toString() ?? '')
+  const [standupEnabled, setStandupEnabled] = useState(project.standupEnabled)
   const [saving, startSave] = useTransition()
   const [deleting, startDelete] = useTransition()
   const [saved, setSaved] = useState(false)
@@ -662,6 +763,7 @@ function SettingsTab({ project, onUpdate }: { project: Project; onUpdate: (p: Pr
           startDate: startDate || null,
           endDate: endDate || null,
           budget: budget ? Number(budget) : null,
+          standupEnabled,
         }),
       })
       if (res.ok) {
@@ -749,6 +851,48 @@ function SettingsTab({ project, onUpdate }: { project: Project; onUpdate: (p: Pr
             {saving ? 'Saving…' : saved ? 'Saved' : 'Save Changes'}
           </button>
         </div>
+      </div>
+
+      <div className="glass-card p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <Bot size={15} strokeWidth={1.5} style={{ color: 'var(--color-blue)' }} />
+          <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>AI Standup Bot</h2>
+        </div>
+        <p className="text-xs mb-3" style={{ color: 'var(--text-secondary)' }}>
+          When enabled, team members receive a daily 9am standup prompt and an AI-generated summary is posted to the project channel at 9:30am.
+        </p>
+        <label className="flex items-center gap-3 cursor-pointer select-none">
+          <div
+            className="relative flex-shrink-0"
+            style={{ width: 36, height: 20 }}
+          >
+            <input
+              type="checkbox"
+              checked={standupEnabled}
+              onChange={e => setStandupEnabled(e.target.checked)}
+              className="sr-only"
+              aria-label="Enable standup bot"
+            />
+            <div
+              className="rounded-full transition-colors duration-200"
+              style={{
+                width: 36, height: 20,
+                background: standupEnabled ? 'var(--color-blue)' : 'var(--border)',
+              }}
+            />
+            <div
+              className="absolute top-0.5 rounded-full transition-transform duration-200 shadow-sm"
+              style={{
+                width: 16, height: 16,
+                background: 'white',
+                transform: standupEnabled ? 'translateX(18px)' : 'translateX(2px)',
+              }}
+            />
+          </div>
+          <span className="text-sm" style={{ color: 'var(--text-primary)' }}>
+            {standupEnabled ? 'Standup bot enabled' : 'Standup bot disabled'}
+          </span>
+        </label>
       </div>
 
       <div className="glass-card p-5" style={{ border: '1px solid rgba(255,59,48,0.2)' }}>
