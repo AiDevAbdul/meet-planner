@@ -24,12 +24,25 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import {
   Plus, GripVertical, Calendar, SlidersHorizontal, ChevronDown,
+  Kanban, List, GanttChart, CalendarDays,
 } from 'lucide-react'
 import { PriorityBadge, StatusBadge } from '@/components/ui/Badges'
 import { Avatar } from '@/components/layout/Sidebar'
 import { formatDate, priorityColor, cn } from '@/lib/utils'
 import { TaskDetailPanel } from './TaskDetailPanel'
 import { AddTaskModal } from './AddTaskModal'
+import { ListView }     from './views/ListView'
+import { GanttView }    from './views/GanttView'
+import { CalendarView } from './views/CalendarView'
+
+type ViewType = 'kanban' | 'list' | 'gantt' | 'calendar'
+
+const VIEW_OPTIONS: { id: ViewType; icon: React.ReactNode; label: string }[] = [
+  { id: 'kanban',   icon: <Kanban      size={15} strokeWidth={1.75} />, label: 'Kanban'   },
+  { id: 'list',     icon: <List        size={15} strokeWidth={1.75} />, label: 'List'     },
+  { id: 'gantt',    icon: <GanttChart  size={15} strokeWidth={1.75} />, label: 'Gantt'    },
+  { id: 'calendar', icon: <CalendarDays size={15} strokeWidth={1.75} />, label: 'Calendar' },
+]
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -95,6 +108,15 @@ export function TaskBoardClient({ initialTasks, users, departments, currentUserI
   const [activeTask,    setActiveTask]    = useState<TaskRow | null>(null)
   const [selectedTask,  setSelectedTask]  = useState<TaskRow | null>(null)
   const [showAddModal,  setShowAddModal]  = useState(false)
+  const [viewType,      setViewType]      = useState<ViewType>(() => {
+    if (typeof window === 'undefined') return 'kanban'
+    return (localStorage.getItem('tasks:view') as ViewType) ?? 'kanban'
+  })
+
+  function switchView(v: ViewType) {
+    setViewType(v)
+    localStorage.setItem('tasks:view', v)
+  }
 
   // Filters — from URL search params
   const filterPriority   = searchParams.get('priority')   ?? 'all'
@@ -279,22 +301,50 @@ export function TaskBoardClient({ initialTasks, users, departments, currentUserI
       >
         <div>
           <h1 className="text-[22px] font-bold" style={{ color: 'var(--text-primary)' }}>
-            Task Board
+            Tasks
           </h1>
           <p className="text-[13px] mt-0.5" style={{ color: 'var(--text-secondary)' }}>
             {filteredTasks.length} task{filteredTasks.length !== 1 ? 's' : ''}
           </p>
         </div>
 
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 font-semibold text-[14px] px-4 py-2.5 rounded-[10px] transition-all hover:opacity-90 active:scale-95"
-          style={{ background: 'var(--color-blue)', color: '#fff' }}
-          aria-label="Add new task"
-        >
-          <Plus size={16} strokeWidth={2} />
-          Add Task
-        </button>
+        <div className="flex items-center gap-2">
+          {/* View switcher */}
+          <div
+            className="flex items-center gap-0.5 p-1 rounded-[10px]"
+            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
+          >
+            {VIEW_OPTIONS.map(v => (
+              <button
+                key={v.id}
+                onClick={() => switchView(v.id)}
+                aria-label={`Switch to ${v.label} view`}
+                title={v.label}
+                style={{
+                  display:      'flex', alignItems: 'center', justifyContent: 'center',
+                  width:        32, height: 28, borderRadius: 7,
+                  background:   viewType === v.id ? 'var(--bg-primary)' : 'transparent',
+                  color:        viewType === v.id ? 'var(--color-blue)' : 'var(--text-tertiary)',
+                  boxShadow:    viewType === v.id ? 'var(--shadow-sm)' : 'none',
+                  transition:   'all 150ms',
+                  cursor:       'pointer',
+                }}
+              >
+                {v.icon}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 font-semibold text-[14px] px-4 py-2.5 rounded-[10px] transition-all hover:opacity-90 active:scale-95"
+            style={{ background: 'var(--color-blue)', color: '#fff' }}
+            aria-label="Add new task"
+          >
+            <Plus size={16} strokeWidth={2} />
+            Add Task
+          </button>
+        </div>
       </div>
 
       {/* ── Filter bar ── */}
@@ -307,47 +357,76 @@ export function TaskBoardClient({ initialTasks, users, departments, currentUserI
         setFilter={setFilter}
       />
 
-      {/* ── Board ── */}
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-      >
-        <div
-          className="flex gap-3 flex-1 overflow-x-auto pb-4"
-          style={{ marginTop: 12 }}
+      {/* ── Views ── */}
+
+      {/* List view */}
+      {viewType === 'list' && (
+        <ListView
+          tasks={filteredTasks}
+          onTaskClick={openTask}
+          onUpdate={updateTask}
+        />
+      )}
+
+      {/* Gantt view */}
+      {viewType === 'gantt' && (
+        <GanttView
+          tasks={filteredTasks}
+          onTaskClick={openTask}
+        />
+      )}
+
+      {/* Calendar view */}
+      {viewType === 'calendar' && (
+        <CalendarView
+          tasks={filteredTasks}
+          onTaskClick={openTask}
+        />
+      )}
+
+      {/* Kanban board */}
+      {viewType === 'kanban' && (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
         >
-          {COLUMNS.map(col => {
-            const colTasks = filteredTasks
-              .filter(t => t.status === col.id)
-              .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+          <div
+            className="flex gap-3 flex-1 overflow-x-auto pb-4"
+            style={{ marginTop: 12 }}
+          >
+            {COLUMNS.map(col => {
+              const colTasks = filteredTasks
+                .filter(t => t.status === col.id)
+                .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
 
-            return (
-              <KanbanColumn
-                key={col.id}
-                column={col}
-                tasks={colTasks}
-                onTaskClick={openTask}
-                onApprove={col.id === 'triage' ? approveTask : undefined}
-                currentUserId={currentUserId}
-                onStatusChange={(id, status) => updateTask(id, { status })}
+              return (
+                <KanbanColumn
+                  key={col.id}
+                  column={col}
+                  tasks={colTasks}
+                  onTaskClick={openTask}
+                  onApprove={col.id === 'triage' ? approveTask : undefined}
+                  currentUserId={currentUserId}
+                  onStatusChange={(id, status) => updateTask(id, { status })}
+                />
+              )
+            })}
+          </div>
+
+          <DragOverlay>
+            {activeTask && (
+              <TaskCard
+                task={activeTask}
+                onClick={() => {}}
+                isDragging
               />
-            )
-          })}
-        </div>
-
-        <DragOverlay>
-          {activeTask && (
-            <TaskCard
-              task={activeTask}
-              onClick={() => {}}
-              isDragging
-            />
-          )}
-        </DragOverlay>
-      </DndContext>
+            )}
+          </DragOverlay>
+        </DndContext>
+      )}
 
       {/* ── Detail panel ── */}
       {selectedTask && (
