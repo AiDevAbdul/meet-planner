@@ -252,7 +252,7 @@
 ---
 
 ### Task 13 — Phase 5D: Forms & Intake (Public request forms → Triage)
-**Status**: 🔲 TODO
+**Status**: ✅ DONE (commit `0172cd9`)
 
 **What to build**:
 - Tables: `intake_forms` (project_id, name, slug, fields jsonb, active), `intake_submissions`
