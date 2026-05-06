@@ -47,6 +47,14 @@ function buildMessage(type: string, payload: Record<string, string>): string {
       return `Your idea in #${payload.channelName ?? 'a channel'} was approved.`
     case 'meeting_processed':
       return `Meeting "${payload.meetingTitle ?? 'Untitled'}" has been processed.`
+    case 'meeting_request_submitted':
+      return `${payload.requesterName ?? 'Someone'} submitted a meeting request: "${payload.requestTitle ?? 'Untitled'}".`
+    case 'meeting_request_approved':
+      return `Your meeting request "${payload.requestTitle ?? 'Untitled'}" was approved by ${payload.reviewerName ?? 'a manager'}.`
+    case 'meeting_request_rejected':
+      return `Your meeting request "${payload.requestTitle ?? 'Untitled'}" was not approved.${payload.reviewNote ? ` Reason: ${payload.reviewNote}` : ''}`
+    case 'meeting_reminder':
+      return `Reminder: "${payload.requestTitle ?? 'Meeting'}" starts in 30 minutes.`
     default:
       return payload.message ?? 'You have a new notification.'
   }

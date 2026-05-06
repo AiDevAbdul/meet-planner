@@ -14,6 +14,12 @@ export const chanRoleEnum = pgEnum('chan_role', ['owner', 'member'])
 export const notifTypeEnum = pgEnum('notif_type', [
   'task_assigned', 'task_due', 'task_overdue', 'mention',
   'idea_flagged', 'idea_approved', 'meeting_processed',
+  'meeting_request_submitted', 'meeting_request_approved',
+  'meeting_request_rejected', 'meeting_reminder',
+])
+
+export const meetingRequestStatusEnum = pgEnum('meeting_request_status', [
+  'draft', 'pending_review', 'approved', 'rejected', 'sent',
 ])
 
 // ─── Tables ───────────────────────────────────────────────────────────────────
@@ -153,6 +159,30 @@ export const channelsRelations = relations(channels, ({ one, many }) => ({
   department: one(departments, { fields: [channels.departmentId], references: [departments.id] }),
   members:    many(channelMembers),
   messages:   many(messages),
+}))
+
+// ─── Meeting Requests ──────────────────────────────────────────────────────────
+export const meetingRequests = pgTable('meeting_requests', {
+  id:                    uuid('id').primaryKey().defaultRandom(),
+  title:                 text('title').notNull(),
+  agenda:                text('agenda'),
+  proposedTime:          timestamp('proposed_time', { withTimezone: true }).notNull(),
+  durationMinutes:       integer('duration_minutes').default(60).notNull(),
+  location:              text('location'),
+  attendeeIds:           jsonb('attendee_ids').$type<string[]>(),
+  status:                meetingRequestStatusEnum('status').default('pending_review').notNull(),
+  createdBy:             uuid('created_by').notNull().references(() => users.id),
+  reviewedBy:            uuid('reviewed_by').references(() => users.id),
+  reviewNote:            text('review_note'),
+  googleCalendarEventId: text('google_calendar_event_id'),
+  reminderSentAt:        timestamp('reminder_sent_at', { withTimezone: true }),
+  createdAt:             timestamp('created_at').defaultNow().notNull(),
+  updatedAt:             timestamp('updated_at').defaultNow().notNull(),
+})
+
+export const meetingRequestsRelations = relations(meetingRequests, ({ one }) => ({
+  creator:  one(users, { fields: [meetingRequests.createdBy],   references: [users.id], relationName: 'mr_creator' }),
+  reviewer: one(users, { fields: [meetingRequests.reviewedBy],  references: [users.id], relationName: 'mr_reviewer' }),
 }))
 
 // ─── Task Comments ─────────────────────────────────────────────────────────────

@@ -25,7 +25,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           clientSecret: process.env.GOOGLE_CLIENT_SECRET,
           authorization: {
             params: {
-              scope: 'openid email profile https://www.googleapis.com/auth/gmail.readonly',
+              scope: [
+                'openid email profile',
+                'https://www.googleapis.com/auth/gmail.readonly',
+                'https://www.googleapis.com/auth/calendar',
+                'https://www.googleapis.com/auth/gmail.send',
+              ].join(' '),
               access_type: 'offline',
               prompt: 'consent',
             },
