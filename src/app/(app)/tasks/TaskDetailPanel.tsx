@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useTransition } from 'react'
 import {
   X, Trash2, ExternalLink, Calendar, User, Flag,
   CheckCircle, Clock, AlertCircle, Send, MessageCircle,
-  Sparkles, Plus, Check, Loader2, GitBranch, Link2, Sliders,
+  Sparkles, Plus, Check, Loader2, GitBranch, Link2, Sliders, Target,
 } from 'lucide-react'
 import { PriorityBadge, StatusBadge } from '@/components/ui/Badges'
 import { Avatar } from '@/components/layout/Sidebar'
@@ -479,6 +479,9 @@ export function TaskDetailPanel({ task, users, onClose, onUpdate, onDelete }: Pr
             {task.projectId && (
               <CustomFieldsSection taskId={task.id} projectId={task.projectId} />
             )}
+
+            {/* Goal / KR links */}
+            <GoalLinksSection taskId={task.id} />
 
             {/* Activity log */}
             <div className="mb-4">
@@ -1506,6 +1509,145 @@ function FieldRow({
         <span className="text-[12px] font-medium">{label}</span>
       </div>
       <div className="flex-1">{children}</div>
+    </div>
+  )
+}
+
+// ── GoalLinksSection ───────────────────────────────────────────────────────────
+
+type GoalKRLink = {
+  goalId:       string
+  goalTitle:    string
+  keyResultId:  string
+  krTitle:      string
+}
+
+type GoalOption = {
+  id:         string
+  title:      string
+  keyResults: { id: string; title: string }[]
+}
+
+function GoalLinksSection({ taskId }: { taskId: string }) {
+  const [links,       setLinks]       = useState<GoalKRLink[]>([])
+  const [goals,       setGoals]       = useState<GoalOption[]>([])
+  const [loading,     setLoading]     = useState(true)
+  const [showAdd,     setShowAdd]     = useState(false)
+  const [selGoalId,   setSelGoalId]   = useState('')
+  const [selKRId,     setSelKRId]     = useState('')
+  const [linking,     startLinking]   = useTransition()
+
+  const fetchLinks = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/goal-links`)
+      if (res.ok) setLinks(await res.json())
+    } finally {
+      setLoading(false)
+    }
+  }, [taskId])
+
+  const fetchGoals = useCallback(async () => {
+    const res = await fetch('/api/goals')
+    if (!res.ok) return
+    const rows: any[] = await res.json()
+    const withKRs = await Promise.all(rows.map(async g => {
+      const r2 = await fetch(`/api/goals/${g.id}/key-results`)
+      const krs = r2.ok ? await r2.json() : []
+      return { id: g.id, title: g.title, keyResults: krs.map((k: any) => ({ id: k.id, title: k.title })) }
+    }))
+    setGoals(withKRs.filter(g => g.keyResults.length > 0))
+  }, [])
+
+  useEffect(() => { fetchLinks() }, [fetchLinks])
+
+  const selGoal = goals.find(g => g.id === selGoalId)
+
+  async function handleLink() {
+    if (!selGoalId || !selKRId) return
+    startLinking(async () => {
+      const res = await fetch(`/api/goals/${selGoalId}/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keyResultId: selKRId, taskId }),
+      })
+      if (res.ok) {
+        setShowAdd(false)
+        setSelGoalId('')
+        setSelKRId('')
+        fetchLinks()
+      }
+    })
+  }
+
+  async function handleUnlink(goalId: string, keyResultId: string) {
+    await fetch(`/api/goals/${goalId}/tasks`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keyResultId, taskId }),
+    })
+    setLinks(prev => prev.filter(l => !(l.goalId === goalId && l.keyResultId === keyResultId)))
+  }
+
+  if (loading) return null
+
+  return (
+    <div className="mb-4">
+      <label className="block text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-tertiary)' }}>
+        Linked to Goals
+      </label>
+      {links.length === 0 && !showAdd && (
+        <p className="text-[12px] mb-2" style={{ color: 'var(--text-tertiary)' }}>Not linked to any goal.</p>
+      )}
+      {links.map(l => (
+        <div key={`${l.goalId}-${l.keyResultId}`}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+          <Target size={12} style={{ color: 'var(--color-blue)', flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>{l.goalTitle}</span>
+            <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}> › {l.krTitle}</span>
+          </div>
+          <button onClick={() => handleUnlink(l.goalId, l.keyResultId)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: 2 }}>
+            <X size={12} />
+          </button>
+        </div>
+      ))}
+
+      {showAdd ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6, padding: '10px 12px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8 }}>
+          <select value={selGoalId}
+            onChange={e => { setSelGoalId(e.target.value); setSelKRId('') }}
+            onFocus={() => goals.length === 0 && fetchGoals()}
+            style={{ padding: '5px 8px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--glass-bg)', fontSize: 12, color: 'var(--text-primary)' }}>
+            <option value="">Select goal…</option>
+            {goals.map(g => <option key={g.id} value={g.id}>{g.title}</option>)}
+          </select>
+          {selGoal && (
+            <select value={selKRId} onChange={e => setSelKRId(e.target.value)}
+              style={{ padding: '5px 8px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--glass-bg)', fontSize: 12, color: 'var(--text-primary)' }}>
+              <option value="">Select key result…</option>
+              {selGoal.keyResults.map(k => <option key={k.id} value={k.id}>{k.title}</option>)}
+            </select>
+          )}
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={handleLink} disabled={!selGoalId || !selKRId || linking}
+              style={{ padding: '4px 10px', borderRadius: 6, background: 'var(--color-blue)', color: '#fff', border: 'none', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+              {linking && <Loader2 size={11} className="animate-spin" />}
+              Link
+            </button>
+            <button onClick={() => { setShowAdd(false); setSelGoalId(''); setSelKRId('') }}
+              style={{ padding: '4px 10px', borderRadius: 6, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-secondary)', fontSize: 12, cursor: 'pointer' }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => { setShowAdd(true); fetchGoals() }}
+          style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-blue)', fontSize: 12, fontWeight: 500, marginTop: 2 }}>
+          <Plus size={12} />
+          Link to Goal
+        </button>
+      )}
     </div>
   )
 }

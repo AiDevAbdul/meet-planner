@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { CheckSquare, Clock, MessageSquare, Plus, ArrowRight } from 'lucide-react'
+import { CheckSquare, Clock, MessageSquare, Plus, ArrowRight, Target, TrendingUp } from 'lucide-react'
 import Link from 'next/link'
 import { PriorityBadge, StatusBadge } from '@/components/ui/Badges'
 import { formatDate } from '@/lib/utils'
@@ -15,6 +15,14 @@ type Meeting = {
   date: string | null; source: string;
 }
 
+type TopGoal = {
+  id:           string
+  title:        string
+  level:        string
+  status:       string
+  progressPct:  number
+}
+
 type Props = {
   tasksDueToday: number
   overdueCount: number | bigint
@@ -22,9 +30,10 @@ type Props = {
   myTasks:      Task[]
   recentMeetings: Meeting[]
   activityFeed: { id: string; title: string; status: string; updatedAt: Date | null }[]
+  topGoals:     TopGoal[]
 }
 
-export function DashboardClient({ tasksDueToday, overdueCount, unreadCount, myTasks: initialTasks, recentMeetings, activityFeed }: Props) {
+export function DashboardClient({ tasksDueToday, overdueCount, unreadCount, myTasks: initialTasks, recentMeetings, activityFeed, topGoals }: Props) {
   const [myTasks, setMyTasks] = useState<Task[]>(initialTasks)
 
   const statCards = [
@@ -135,6 +144,44 @@ export function DashboardClient({ tasksDueToday, overdueCount, unreadCount, myTa
                     </span>
                     <StatusBadge status={item.status} />
                   </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Top Company Goals */}
+          <div className="glass-card p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-[15px] font-semibold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                <Target size={15} style={{ color: 'var(--color-blue)' }} />
+                Company Goals
+              </h2>
+              <Link href="/goals" className="text-sm font-medium" style={{ color: 'var(--color-blue)' }}>
+                View all
+              </Link>
+            </div>
+            {topGoals.length === 0 ? (
+              <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No active goals</p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {topGoals.map(g => (
+                  <Link key={g.id} href="/goals"
+                    className="flex flex-col gap-1.5 p-3 rounded-[10px]"
+                    style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+                    <span className="text-[13px] font-medium truncate" style={{ color: 'var(--text-primary)' }}>
+                      {g.title}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ flex: 1, height: 5, borderRadius: 3, background: 'var(--border)', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${g.progressPct}%`, borderRadius: 3,
+                          background: g.progressPct >= 100 ? 'var(--color-green)' : g.progressPct >= 60 ? 'var(--color-blue)' : 'var(--color-orange)',
+                          transition: 'width 0.4s ease' }} />
+                      </div>
+                      <span className="text-[11px] font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                        {g.progressPct}%
+                      </span>
+                    </div>
+                  </Link>
                 ))}
               </div>
             )}

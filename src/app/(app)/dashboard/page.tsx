@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { tasks, meetings, notifications } from '@/lib/db/schema'
+import { tasks, meetings, notifications, goals, keyResults } from '@/lib/db/schema'
 import { eq, and, lte, lt, count, desc } from 'drizzle-orm'
 import { DashboardClient } from './DashboardClient'
 
@@ -10,7 +10,7 @@ export default async function DashboardPage() {
 
   const today = new Date().toISOString().slice(0, 10)
 
-  const [tasksDueToday, overdueCount, unreadCount, myTasks, recentMeetings, activityFeed] =
+  const [tasksDueToday, overdueCount, unreadCount, myTasks, recentMeetings, activityFeed, companyGoals, allKRs] =
     await Promise.all([
       db.select({ id: tasks.id, title: tasks.title, status: tasks.status, priority: tasks.priority, dueDate: tasks.dueDate })
         .from(tasks)
@@ -42,7 +42,30 @@ export default async function DashboardPage() {
       }).from(tasks)
         .orderBy(desc(tasks.updatedAt))
         .limit(10),
+
+      db.select({ id: goals.id, title: goals.title, level: goals.level, status: goals.status })
+        .from(goals)
+        .where(and(eq(goals.level, 'company'), eq(goals.status, 'active')))
+        .orderBy(desc(goals.createdAt))
+        .limit(3),
+
+      db.select({ goalId: keyResults.goalId, currentValue: keyResults.currentValue, targetValue: keyResults.targetValue, metricType: keyResults.metricType })
+        .from(keyResults),
     ])
+
+  const topGoals = companyGoals.map(g => {
+    const gKRs = allKRs.filter(k => k.goalId === g.id)
+    let pct = 0
+    if (gKRs.length > 0) {
+      const sum = gKRs.reduce((s, k) => {
+        if (k.metricType === 'boolean') return s + (k.currentValue >= 1 ? 100 : 0)
+        if (k.targetValue === 0) return s
+        return s + Math.min(100, Math.round((k.currentValue / k.targetValue) * 100))
+      }, 0)
+      pct = Math.round(sum / gKRs.length)
+    }
+    return { id: g.id, title: g.title, level: g.level, status: g.status, progressPct: pct }
+  })
 
   return (
     <DashboardClient
@@ -52,6 +75,7 @@ export default async function DashboardPage() {
       myTasks={myTasks}
       recentMeetings={recentMeetings}
       activityFeed={activityFeed}
+      topGoals={topGoals}
     />
   )
 }

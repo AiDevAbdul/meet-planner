@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, CheckSquare, MessageSquare, FileText,
   Users, Settings, LogOut, Filter, BarChart2, CalendarClock,
-  FolderKanban, Activity,
+  FolderKanban, Activity, Target,
 } from 'lucide-react'
 import { signOut, useSession } from 'next-auth/react'
 
@@ -19,6 +19,7 @@ const navItems = [
   { href: '/messaging',        icon: MessageSquare,   label: 'Messaging' },
   { href: '/people',           icon: Users,           label: 'People' },
   { href: '/analytics',        icon: BarChart2,       label: 'Analytics' },
+  { href: '/goals',            icon: Target,          label: 'Goals & OKRs' },
 ]
 
 export function Sidebar() {

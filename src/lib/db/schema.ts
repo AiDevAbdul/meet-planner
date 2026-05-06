@@ -24,7 +24,7 @@ export const notifTypeEnum = pgEnum('notif_type', [
   'idea_flagged', 'idea_approved', 'meeting_processed',
   'meeting_request_submitted', 'meeting_request_approved',
   'meeting_request_rejected', 'meeting_reminder',
-  'minutes_ready_for_review', 'milestone_due',
+  'minutes_ready_for_review', 'milestone_due', 'goal_checkin_due',
 ])
 
 export const milestoneStatusEnum = pgEnum('milestone_status', ['pending', 'in_progress', 'completed'])
@@ -413,4 +413,66 @@ export const userAvailabilityRelations = relations(userAvailability, ({ one }) =
 
 export const userSkillsRelations = relations(userSkills, ({ one }) => ({
   user: one(users, { fields: [userSkills.userId], references: [users.id] }),
+}))
+
+// ─── Goals & OKRs ─────────────────────────────────────────────────────────────
+export const goalLevelEnum  = pgEnum('goal_level',  ['company', 'team', 'individual'])
+export const goalStatusEnum = pgEnum('goal_status', ['draft', 'active', 'paused', 'completed', 'cancelled'])
+export const krMetricEnum   = pgEnum('kr_metric',   ['number', 'percentage', 'currency', 'boolean'])
+
+export const goals = pgTable('goals', {
+  id:          uuid('id').primaryKey().defaultRandom(),
+  title:       text('title').notNull(),
+  description: text('description'),
+  level:       goalLevelEnum('level').default('company').notNull(),
+  ownerId:     uuid('owner_id').references(() => users.id),
+  teamId:      uuid('team_id').references(() => departments.id),
+  status:      goalStatusEnum('status').default('active').notNull(),
+  startDate:   date('start_date'),
+  endDate:     date('end_date'),
+  parentGoalId: uuid('parent_goal_id').references((): any => goals.id),
+  createdBy:   uuid('created_by').references(() => users.id),
+  createdAt:   timestamp('created_at').defaultNow().notNull(),
+  updatedAt:   timestamp('updated_at').defaultNow().notNull(),
+})
+
+export const keyResults = pgTable('key_results', {
+  id:           uuid('id').primaryKey().defaultRandom(),
+  goalId:       uuid('goal_id').notNull().references(() => goals.id, { onDelete: 'cascade' }),
+  title:        text('title').notNull(),
+  metricType:   krMetricEnum('metric_type').default('percentage').notNull(),
+  targetValue:  integer('target_value').default(100).notNull(),
+  currentValue: integer('current_value').default(0).notNull(),
+  unit:         text('unit'),
+  startDate:    date('start_date'),
+  dueDate:      date('due_date'),
+  createdAt:    timestamp('created_at').defaultNow().notNull(),
+  updatedAt:    timestamp('updated_at').defaultNow().notNull(),
+})
+
+export const goalTaskLinks = pgTable('goal_task_links', {
+  goalId:       uuid('goal_id').notNull().references(() => goals.id, { onDelete: 'cascade' }),
+  keyResultId:  uuid('key_result_id').notNull().references(() => keyResults.id, { onDelete: 'cascade' }),
+  taskId:       uuid('task_id').notNull().references(() => tasks.id, { onDelete: 'cascade' }),
+  createdAt:    timestamp('created_at').defaultNow().notNull(),
+}, (t) => [primaryKey({ columns: [t.keyResultId, t.taskId] })])
+
+export const goalsRelations = relations(goals, ({ one, many }) => ({
+  owner:      one(users,       { fields: [goals.ownerId],      references: [users.id],       relationName: 'goal_owner' }),
+  team:       one(departments, { fields: [goals.teamId],       references: [departments.id] }),
+  creator:    one(users,       { fields: [goals.createdBy],    references: [users.id],       relationName: 'goal_creator' }),
+  parent:     one(goals,       { fields: [goals.parentGoalId], references: [goals.id],       relationName: 'goal_parent_child' }),
+  children:   many(goals,      { relationName: 'goal_parent_child' }),
+  keyResults: many(keyResults),
+}))
+
+export const keyResultsRelations = relations(keyResults, ({ one, many }) => ({
+  goal:      one(goals, { fields: [keyResults.goalId], references: [goals.id] }),
+  taskLinks: many(goalTaskLinks),
+}))
+
+export const goalTaskLinksRelations = relations(goalTaskLinks, ({ one }) => ({
+  goal:      one(goals,      { fields: [goalTaskLinks.goalId],      references: [goals.id] }),
+  keyResult: one(keyResults, { fields: [goalTaskLinks.keyResultId], references: [keyResults.id] }),
+  task:      one(tasks,      { fields: [goalTaskLinks.taskId],      references: [tasks.id] }),
 }))
