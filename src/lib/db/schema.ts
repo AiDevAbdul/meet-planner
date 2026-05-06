@@ -11,6 +11,14 @@ export const priorityEnum = pgEnum('priority', ['critical', 'high', 'normal', 'l
 export const statusEnum   = pgEnum('status',   ['triage', 'todo', 'in_progress', 'review', 'done'])
 export const chanTypeEnum = pgEnum('chan_type', ['public', 'private', 'direct'])
 export const chanRoleEnum = pgEnum('chan_role', ['owner', 'member'])
+
+export const projectStatusEnum = pgEnum('project_status', [
+  'planning', 'active', 'on_hold', 'completed', 'archived',
+])
+export const projectMemberRoleEnum = pgEnum('project_member_role', [
+  'owner', 'manager', 'member', 'viewer',
+])
+
 export const notifTypeEnum = pgEnum('notif_type', [
   'task_assigned', 'task_due', 'task_overdue', 'mention',
   'idea_flagged', 'idea_approved', 'meeting_processed',
@@ -30,6 +38,28 @@ export const minutesStatusEnum = pgEnum('minutes_status', [
 ])
 
 // ─── Tables ───────────────────────────────────────────────────────────────────
+export const projects = pgTable('projects', {
+  id:          uuid('id').primaryKey().defaultRandom(),
+  name:        text('name').notNull(),
+  description: text('description'),
+  status:      projectStatusEnum('status').default('planning').notNull(),
+  ownerId:     uuid('owner_id'),
+  color:       text('color').default('#007AFF').notNull(),
+  icon:        text('icon').default('Folder').notNull(),
+  startDate:   date('start_date'),
+  endDate:     date('end_date'),
+  budget:      integer('budget'),
+  createdAt:   timestamp('created_at').defaultNow().notNull(),
+  updatedAt:   timestamp('updated_at').defaultNow().notNull(),
+})
+
+export const projectMembers = pgTable('project_members', {
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  userId:    uuid('user_id').notNull(),
+  role:      projectMemberRoleEnum('role').default('member').notNull(),
+  joinedAt:  timestamp('joined_at').defaultNow().notNull(),
+}, (t) => [primaryKey({ columns: [t.projectId, t.userId] })])
+
 export const departments = pgTable('departments', {
   id:        uuid('id').primaryKey().defaultRandom(),
   name:      text('name').notNull(),
@@ -62,6 +92,7 @@ export const meetings = pgTable('meetings', {
   decisions:   jsonb('decisions').$type<string[]>(),
   attendees:   jsonb('attendees').$type<{ name: string; email: string }[]>(),
   date:        date('date'),
+  projectId:   uuid('project_id').references(() => projects.id),
   createdBy:   uuid('created_by').references(() => users.id),
   createdAt:   timestamp('created_at').defaultNow().notNull(),
 })
@@ -76,6 +107,7 @@ export const tasks = pgTable('tasks', {
   createdBy:    uuid('created_by').references(() => users.id),
   meetingId:    uuid('meeting_id').references(() => meetings.id),
   departmentId: uuid('department_id').references(() => departments.id),
+  projectId:    uuid('project_id').references(() => projects.id),
   dueDate:      date('due_date'),
   position:     integer('position').default(0),
   createdAt:    timestamp('created_at').defaultNow().notNull(),
@@ -161,6 +193,7 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
   creator:    one(users,       { fields: [tasks.createdBy],    references: [users.id],       relationName: 'creator' }),
   meeting:    one(meetings,    { fields: [tasks.meetingId],    references: [meetings.id] }),
   department: one(departments, { fields: [tasks.departmentId], references: [departments.id] }),
+  project:    one(projects,    { fields: [tasks.projectId],    references: [projects.id] }),
   milestones: many(milestones),
 }))
 
@@ -257,4 +290,17 @@ export const milestones = pgTable('milestones', {
 export const milestonesRelations = relations(milestones, ({ one }) => ({
   task:    one(tasks, { fields: [milestones.taskId],    references: [tasks.id] }),
   creator: one(users, { fields: [milestones.createdBy], references: [users.id] }),
+}))
+
+// ─── Projects ─────────────────────────────────────────────────────────────────
+export const projectsRelations = relations(projects, ({ one, many }) => ({
+  owner:   one(users, { fields: [projects.ownerId], references: [users.id] }),
+  members: many(projectMembers),
+  tasks:   many(tasks),
+  meetings: many(meetings),
+}))
+
+export const projectMembersRelations = relations(projectMembers, ({ one }) => ({
+  project: one(projects, { fields: [projectMembers.projectId], references: [projects.id] }),
+  user:    one(users,    { fields: [projectMembers.userId],    references: [users.id] }),
 }))

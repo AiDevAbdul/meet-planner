@@ -5,18 +5,20 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, CheckSquare, MessageSquare, FileText,
   Users, Settings, LogOut, Filter, BarChart2, CalendarClock,
+  FolderKanban,
 } from 'lucide-react'
 import { signOut, useSession } from 'next-auth/react'
 
 const navItems = [
-  { href: '/dashboard',  icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/tasks',      icon: CheckSquare,      label: 'Task Board' },
-  { href: '/meetings',          icon: FileText,      label: 'Meetings' },
-  { href: '/meeting-requests', icon: CalendarClock, label: 'Meeting Requests' },
-  { href: '/triage',            icon: Filter,        label: 'Triage Queue' },
-  { href: '/messaging',  icon: MessageSquare,    label: 'Messaging' },
-  { href: '/people',     icon: Users,            label: 'People' },
-  { href: '/analytics',  icon: BarChart2,        label: 'Analytics' },
+  { href: '/dashboard',        icon: LayoutDashboard, label: 'Dashboard' },
+  { href: '/projects',         icon: FolderKanban,    label: 'Projects' },
+  { href: '/tasks',            icon: CheckSquare,     label: 'Task Board' },
+  { href: '/meetings',         icon: FileText,        label: 'Meetings' },
+  { href: '/meeting-requests', icon: CalendarClock,   label: 'Meeting Requests' },
+  { href: '/triage',           icon: Filter,          label: 'Triage Queue' },
+  { href: '/messaging',        icon: MessageSquare,   label: 'Messaging' },
+  { href: '/people',           icon: Users,           label: 'People' },
+  { href: '/analytics',        icon: BarChart2,       label: 'Analytics' },
 ]
 
 export function Sidebar() {

@@ -102,7 +102,7 @@
 ## Phase 4 — Full PM Foundation
 
 ### Task 5 — Phase 4A: Projects Entity + Portfolio View
-**Status**: 🔲 TODO
+**Status**: ✅ DONE
 
 **What to build**:
 - New DB tables:
