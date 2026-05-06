@@ -239,7 +239,7 @@
 ---
 
 ### Task 12 — Phase 5C: Automations (Preset Rules Engine)
-**Status**: 🔲 TODO
+**Status**: ✅ DONE (commit `a89adcb`)
 
 **Depends on**: Tasks 5, 9 (projects + milestones)
 
