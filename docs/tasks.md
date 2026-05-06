@@ -224,7 +224,7 @@
 ---
 
 ### Task 11 — Phase 5B: Time Tracking + Budget Tracking
-**Status**: 🔲 TODO
+**Status**: ✅ DONE (commit `2818021`)
 
 **What to build**:
 - Tables: `time_entries` (task_id, project_id, user_id, date, minutes, note, billable), `project_expenses`
