@@ -51,7 +51,7 @@
 ---
 
 ### Task 3 — Phase 3C: Milestones (AI-assisted sub-goals under tasks)
-**Status**: 🔲 TODO
+**Status**: ✅ DONE (commit `0389a16`)
 
 **What to build**:
 - New DB table: `milestones` (id, task_id FK, title, due_date, status: pending/in_progress/completed, completed_at, created_by, ai_suggested bool, created_at)
