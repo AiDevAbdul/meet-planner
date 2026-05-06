@@ -131,7 +131,7 @@
 ---
 
 ### Task 6 — Phase 4B: Task Views — List, Gantt/Timeline, Calendar
-**Status**: 🔲 TODO
+**Status**: ✅ DONE (commit `1139f3a`)
 
 **Depends on**: Task 5 (projects)
 
