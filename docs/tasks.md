@@ -308,7 +308,7 @@
 ---
 
 ### Task 17 — Phase 6C: Advanced Analytics + AI Narrative Reports
-**Status**: 🔲 TODO
+**Status**: ✅ DONE (commit `2fc1374`)
 
 **Depends on**: Task 11 (time tracking), Task 5 (projects)
 
@@ -323,7 +323,7 @@
 ---
 
 ### Task 18 — Phase 6D: Mobile-Responsive PWA
-**Status**: 🔲 TODO
+**Status**: ✅ DONE (commit `09a3a23`)
 
 **What to build**:
 - Audit and fix all pages for 320px–768px breakpoints

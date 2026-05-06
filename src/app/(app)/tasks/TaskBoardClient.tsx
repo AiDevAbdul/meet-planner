@@ -447,6 +447,7 @@ export function TaskBoardClient({ initialTasks, users, departments, currentUserI
       {/* Kanban board */}
       {viewType === 'kanban' && (
         <DndContext
+          id="task-board-dnd"
           sensors={sensors}
           collisionDetection={closestCenter}
           onDragStart={handleDragStart}
