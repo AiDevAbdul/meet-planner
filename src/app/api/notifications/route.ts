@@ -57,6 +57,8 @@ function buildMessage(type: string, payload: Record<string, string>): string {
       return `Reminder: "${payload.requestTitle ?? 'Meeting'}" starts in 30 minutes.`
     case 'minutes_ready_for_review':
       return `Meeting minutes for "${payload.meetingTitle ?? 'a meeting'}" are ready for review.`
+    case 'milestone_due':
+      return `Milestone "${payload.milestoneTitle ?? 'Untitled'}" (${payload.taskTitle ?? 'task'}) is due ${payload.dueLabel ?? 'soon'}.`
     default:
       return payload.message ?? 'You have a new notification.'
   }

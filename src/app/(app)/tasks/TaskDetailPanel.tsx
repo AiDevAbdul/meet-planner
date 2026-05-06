@@ -4,11 +4,24 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   X, Trash2, ExternalLink, Calendar, User, Flag,
   CheckCircle, Clock, AlertCircle, Send, MessageCircle,
+  Sparkles, Plus, Check, Loader2,
 } from 'lucide-react'
 import { PriorityBadge, StatusBadge } from '@/components/ui/Badges'
 import { Avatar } from '@/components/layout/Sidebar'
 import { formatDate, formatRelative } from '@/lib/utils'
 import type { TaskRow, UserRow } from './TaskBoardClient'
+
+// ─── Milestone types ──────────────────────────────────────────────────────────
+
+type Milestone = {
+  id:          string
+  taskId:      string
+  title:       string
+  dueDate:     string | null
+  status:      'pending' | 'in_progress' | 'completed'
+  aiSuggested: boolean
+  createdAt:   string
+}
 
 type Props = {
   task:     TaskRow
@@ -421,6 +434,9 @@ export function TaskDetailPanel({ task, users, onClose, onUpdate, onDelete }: Pr
               </p>
             </div>
 
+            {/* Milestones */}
+            <MilestoneSection taskId={task.id} />
+
             {/* Activity log */}
             <div className="mb-4">
               <label className="block text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--text-tertiary)' }}>
@@ -560,6 +576,354 @@ export function TaskDetailPanel({ task, users, onClose, onUpdate, onDelete }: Pr
         </div>
       </div>
     </>
+  )
+}
+
+// ── MilestoneSection ──────────────────────────────────────────────────────────
+
+function MilestoneSection({ taskId }: { taskId: string }) {
+  const [milestones,    setMilestones]    = useState<Milestone[]>([])
+  const [loading,       setLoading]       = useState(true)
+  const [newTitle,      setNewTitle]      = useState('')
+  const [newDueDate,    setNewDueDate]    = useState('')
+  const [adding,        setAdding]        = useState(false)
+  const [suggesting,    setSuggesting]    = useState(false)
+  const [suggestions,   setSuggestions]   = useState<{ title: string }[]>([])
+  const [editingId,     setEditingId]     = useState<string | null>(null)
+  const [editDraft,     setEditDraft]     = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const fetchMilestones = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/milestones`)
+      if (res.ok) setMilestones(await res.json())
+    } finally {
+      setLoading(false)
+    }
+  }, [taskId])
+
+  useEffect(() => { fetchMilestones() }, [fetchMilestones])
+
+  const total     = milestones.length
+  const completed = milestones.filter(m => m.status === 'completed').length
+  const pct       = total > 0 ? Math.round((completed / total) * 100) : 0
+
+  async function toggleMilestone(m: Milestone) {
+    const next = m.status === 'completed' ? 'pending' : 'completed'
+    setMilestones(prev => prev.map(x => x.id === m.id ? { ...x, status: next } : x))
+    await fetch(`/api/milestones/${m.id}`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ status: next }),
+    })
+  }
+
+  async function deleteMilestone(id: string) {
+    setMilestones(prev => prev.filter(m => m.id !== id))
+    await fetch(`/api/milestones/${id}`, { method: 'DELETE' })
+  }
+
+  async function addMilestone() {
+    if (!newTitle.trim() || adding) return
+    setAdding(true)
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/milestones`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ title: newTitle.trim(), dueDate: newDueDate || null }),
+      })
+      if (res.ok) {
+        const m = await res.json()
+        setMilestones(prev => [...prev, m])
+        setNewTitle('')
+        setNewDueDate('')
+      }
+    } finally {
+      setAdding(false)
+    }
+  }
+
+  async function acceptSuggestion(title: string) {
+    setSuggestions(prev => prev.filter(s => s.title !== title))
+    const res = await fetch(`/api/tasks/${taskId}/milestones`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ title, aiSuggested: true }),
+    })
+    if (res.ok) {
+      const m = await res.json()
+      setMilestones(prev => [...prev, m])
+    }
+  }
+
+  async function aiSuggest() {
+    if (suggesting) return
+    setSuggesting(true)
+    setSuggestions([])
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/milestones/generate`, { method: 'POST' })
+      if (res.ok) {
+        const data = await res.json()
+        setSuggestions(Array.isArray(data) ? data : [])
+      }
+    } finally {
+      setSuggesting(false)
+    }
+  }
+
+  async function saveEdit(id: string) {
+    const trimmed = editDraft.trim()
+    if (!trimmed) { setEditingId(null); return }
+    setMilestones(prev => prev.map(m => m.id === id ? { ...m, title: trimmed } : m))
+    setEditingId(null)
+    await fetch(`/api/milestones/${id}`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ title: trimmed }),
+    })
+  }
+
+  return (
+    <div className="mb-5">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5">
+          <CheckCircle size={13} strokeWidth={1.5} style={{ color: 'var(--text-tertiary)' }} />
+          <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>
+            Milestones
+          </span>
+          {total > 0 && (
+            <span className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
+              {completed}/{total}
+            </span>
+          )}
+        </div>
+        <button
+          onClick={aiSuggest}
+          disabled={suggesting}
+          className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-[6px] transition-all hover:opacity-90 disabled:opacity-50"
+          style={{ background: 'rgba(0,122,255,0.08)', color: 'var(--color-blue)', border: '1px solid rgba(0,122,255,0.15)' }}
+          aria-label="AI suggest milestones"
+        >
+          {suggesting
+            ? <Loader2 size={11} strokeWidth={2} className="animate-spin" />
+            : <Sparkles size={11} strokeWidth={1.5} />
+          }
+          AI Suggest
+        </button>
+      </div>
+
+      {/* Progress bar */}
+      {total > 0 && (
+        <div className="mb-3">
+          <div style={{ height: 4, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
+            <div
+              style={{
+                height:     '100%',
+                width:      `${pct}%`,
+                background: pct === 100 ? 'var(--color-green)' : 'var(--color-blue)',
+                borderRadius: 3,
+                transition:   'width 300ms var(--ease-out)',
+              }}
+            />
+          </div>
+          <p className="text-[10px] mt-1" style={{ color: 'var(--text-tertiary)' }}>{pct}% complete</p>
+        </div>
+      )}
+
+      {/* AI suggestions */}
+      {suggestions.length > 0 && (
+        <div className="mb-3 rounded-[10px] p-3" style={{ background: 'rgba(0,122,255,0.05)', border: '1px solid rgba(0,122,255,0.15)' }}>
+          <p className="text-[11px] font-semibold mb-2" style={{ color: 'var(--color-blue)' }}>
+            AI Suggestions — click + to add
+          </p>
+          <div className="flex flex-col gap-1.5">
+            {suggestions.map((s, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <button
+                  onClick={() => acceptSuggestion(s.title)}
+                  className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 transition-all hover:opacity-80"
+                  style={{ background: 'var(--color-blue)' }}
+                  aria-label={`Add suggestion: ${s.title}`}
+                >
+                  <Plus size={11} strokeWidth={2.5} style={{ color: '#fff' }} />
+                </button>
+                <span className="text-[12px] leading-snug" style={{ color: 'var(--text-secondary)' }}>
+                  {s.title}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Milestone list */}
+      {loading ? (
+        <div className="flex items-center gap-1.5 py-2">
+          <Loader2 size={12} strokeWidth={2} className="animate-spin" style={{ color: 'var(--text-tertiary)' }} />
+          <span className="text-[12px]" style={{ color: 'var(--text-tertiary)' }}>Loading…</span>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1.5 mb-3">
+          {milestones.map(m => (
+            <MilestoneRow
+              key={m.id}
+              milestone={m}
+              editing={editingId === m.id}
+              editDraft={editDraft}
+              onToggle={() => toggleMilestone(m)}
+              onDelete={() => deleteMilestone(m.id)}
+              onStartEdit={() => { setEditingId(m.id); setEditDraft(m.title) }}
+              onEditChange={setEditDraft}
+              onSaveEdit={() => saveEdit(m.id)}
+              onCancelEdit={() => setEditingId(null)}
+            />
+          ))}
+          {milestones.length === 0 && suggestions.length === 0 && (
+            <p className="text-[12px]" style={{ color: 'var(--text-tertiary)' }}>
+              No milestones yet. Add one below or use AI Suggest.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Add milestone form */}
+      <div className="flex gap-1.5">
+        <input
+          ref={inputRef}
+          value={newTitle}
+          onChange={e => setNewTitle(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') addMilestone() }}
+          placeholder="Add milestone…"
+          className="flex-1 text-[12px] outline-none rounded-[7px] px-2.5 py-1.5"
+          style={{
+            color:      'var(--text-primary)',
+            background: 'var(--bg-secondary)',
+            border:     '1px solid var(--border)',
+          }}
+          aria-label="New milestone title"
+        />
+        <input
+          type="date"
+          value={newDueDate}
+          onChange={e => setNewDueDate(e.target.value)}
+          className="text-[11px] outline-none rounded-[7px] px-2 py-1.5"
+          style={{
+            color:      'var(--text-secondary)',
+            background: 'var(--bg-secondary)',
+            border:     '1px solid var(--border)',
+            width:      110,
+          }}
+          aria-label="Milestone due date"
+        />
+        <button
+          onClick={addMilestone}
+          disabled={!newTitle.trim() || adding}
+          className="w-7 h-7 flex items-center justify-center rounded-[7px] transition-all disabled:opacity-40 hover:opacity-90"
+          style={{ background: 'var(--color-blue)', flexShrink: 0 }}
+          aria-label="Add milestone"
+        >
+          {adding
+            ? <Loader2 size={12} strokeWidth={2} className="animate-spin" style={{ color: '#fff' }} />
+            : <Plus size={13} strokeWidth={2.5} style={{ color: '#fff' }} />
+          }
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function MilestoneRow({
+  milestone, editing, editDraft,
+  onToggle, onDelete, onStartEdit, onEditChange, onSaveEdit, onCancelEdit,
+}: {
+  milestone:    Milestone
+  editing:      boolean
+  editDraft:    string
+  onToggle:     () => void
+  onDelete:     () => void
+  onStartEdit:  () => void
+  onEditChange: (v: string) => void
+  onSaveEdit:   () => void
+  onCancelEdit: () => void
+}) {
+  const [hovered, setHovered] = useState(false)
+  const done = milestone.status === 'completed'
+
+  return (
+    <div
+      className="flex items-center gap-2 group"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {/* Toggle checkbox */}
+      <button
+        onClick={onToggle}
+        className="flex-shrink-0 w-4 h-4 rounded-full border flex items-center justify-center transition-all"
+        style={{
+          background: done ? 'var(--color-green)' : 'transparent',
+          borderColor: done ? 'var(--color-green)' : 'var(--border)',
+        }}
+        aria-label={done ? 'Mark incomplete' : 'Mark complete'}
+      >
+        {done && <Check size={9} strokeWidth={3} style={{ color: '#fff' }} />}
+      </button>
+
+      {/* Title */}
+      <div className="flex-1 min-w-0">
+        {editing ? (
+          <input
+            autoFocus
+            value={editDraft}
+            onChange={e => onEditChange(e.target.value)}
+            onBlur={onSaveEdit}
+            onKeyDown={e => {
+              if (e.key === 'Enter') onSaveEdit()
+              if (e.key === 'Escape') onCancelEdit()
+            }}
+            className="w-full text-[12px] outline-none bg-transparent"
+            style={{
+              color:        'var(--text-primary)',
+              borderBottom: '1px solid var(--color-blue)',
+            }}
+          />
+        ) : (
+          <span
+            className="text-[12px] leading-snug cursor-text block truncate"
+            style={{
+              color:          done ? 'var(--text-tertiary)' : 'var(--text-secondary)',
+              textDecoration: done ? 'line-through' : 'none',
+            }}
+            onClick={onStartEdit}
+            title={milestone.title}
+          >
+            {milestone.title}
+          </span>
+        )}
+        {milestone.dueDate && !editing && (
+          <span className="text-[10px] flex items-center gap-0.5 mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+            <Calendar size={9} strokeWidth={1.5} />
+            {formatDate(milestone.dueDate)}
+          </span>
+        )}
+      </div>
+
+      {/* Delete */}
+      <button
+        onClick={onDelete}
+        style={{
+          opacity: hovered ? 1 : 0,
+          transition: 'opacity 150ms',
+          color: 'var(--text-tertiary)',
+          padding: 2,
+          flexShrink: 0,
+        }}
+        aria-label="Delete milestone"
+        className="hover:opacity-70"
+      >
+        <X size={11} strokeWidth={2} />
+      </button>
+    </div>
   )
 }
 

@@ -16,8 +16,10 @@ export const notifTypeEnum = pgEnum('notif_type', [
   'idea_flagged', 'idea_approved', 'meeting_processed',
   'meeting_request_submitted', 'meeting_request_approved',
   'meeting_request_rejected', 'meeting_reminder',
-  'minutes_ready_for_review',
+  'minutes_ready_for_review', 'milestone_due',
 ])
+
+export const milestoneStatusEnum = pgEnum('milestone_status', ['pending', 'in_progress', 'completed'])
 
 export const meetingRequestStatusEnum = pgEnum('meeting_request_status', [
   'draft', 'pending_review', 'approved', 'rejected', 'sent',
@@ -153,11 +155,12 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   notifications:  many(notifications),
 }))
 
-export const tasksRelations = relations(tasks, ({ one }) => ({
+export const tasksRelations = relations(tasks, ({ one, many }) => ({
   assignee:   one(users,       { fields: [tasks.assigneeId],   references: [users.id],       relationName: 'assignee' }),
   creator:    one(users,       { fields: [tasks.createdBy],    references: [users.id],       relationName: 'creator' }),
   meeting:    one(meetings,    { fields: [tasks.meetingId],    references: [meetings.id] }),
   department: one(departments, { fields: [tasks.departmentId], references: [departments.id] }),
+  milestones: many(milestones),
 }))
 
 export const channelsRelations = relations(channels, ({ one, many }) => ({
@@ -223,4 +226,23 @@ export const meetingMinutesRelations = relations(meetingMinutes, ({ one }) => ({
   meeting:  one(meetings, { fields: [meetingMinutes.meetingId],  references: [meetings.id] }),
   reviewer: one(users,    { fields: [meetingMinutes.reviewedBy], references: [users.id], relationName: 'mm_reviewer' }),
   approver: one(users,    { fields: [meetingMinutes.approvedBy], references: [users.id], relationName: 'mm_approver' }),
+}))
+
+// ─── Milestones ────────────────────────────────────────────────────────────────
+export const milestones = pgTable('milestones', {
+  id:          uuid('id').primaryKey().defaultRandom(),
+  taskId:      uuid('task_id').notNull().references(() => tasks.id, { onDelete: 'cascade' }),
+  title:       text('title').notNull(),
+  dueDate:     date('due_date'),
+  status:      milestoneStatusEnum('status').default('pending').notNull(),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  createdBy:   uuid('created_by').references(() => users.id),
+  aiSuggested: boolean('ai_suggested').default(false).notNull(),
+  createdAt:   timestamp('created_at').defaultNow().notNull(),
+  updatedAt:   timestamp('updated_at').defaultNow().notNull(),
+})
+
+export const milestonesRelations = relations(milestones, ({ one }) => ({
+  task:    one(tasks, { fields: [milestones.taskId],    references: [tasks.id] }),
+  creator: one(users, { fields: [milestones.createdBy], references: [users.id] }),
 }))

@@ -50,6 +50,8 @@ export type TaskRow = {
   assigneeName:      string | null
   assigneeEmail:     string | null
   assigneeAvatarUrl: string | null
+  milestoneTotal?: number | null
+  milestoneDone?:  number | null
 }
 
 export type UserRow = {
@@ -715,6 +717,33 @@ export function TaskCard({
           />
         )}
       </div>
+
+      {/* Milestone progress bar */}
+      {(task.milestoneTotal ?? 0) > 0 && (
+        <div className="mt-2.5">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] font-medium" style={{ color: 'var(--text-tertiary)' }}>
+              Milestones {task.milestoneDone ?? 0}/{task.milestoneTotal ?? 0}
+            </span>
+            <span className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>
+              {Math.round(((task.milestoneDone ?? 0) / (task.milestoneTotal ?? 1)) * 100)}%
+            </span>
+          </div>
+          <div style={{ height: 3, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
+            <div
+              style={{
+                height:     '100%',
+                width:      `${Math.round(((task.milestoneDone ?? 0) / (task.milestoneTotal ?? 1)) * 100)}%`,
+                background: (task.milestoneDone ?? 0) === (task.milestoneTotal ?? 0)
+                  ? 'var(--color-green)'
+                  : 'var(--color-blue)',
+                borderRadius: 2,
+                transition:   'width 300ms var(--ease-out)',
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Triage approve button */}
       {task.status === 'triage' && onApprove && (
