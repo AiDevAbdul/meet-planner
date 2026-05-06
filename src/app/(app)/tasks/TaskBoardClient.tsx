@@ -24,7 +24,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import {
   Plus, GripVertical, Calendar, SlidersHorizontal, ChevronDown,
-  Kanban, List, GanttChart, CalendarDays,
+  Kanban, List, GanttChart, CalendarDays, Download, Upload, X, Check,
 } from 'lucide-react'
 import { PriorityBadge, StatusBadge } from '@/components/ui/Badges'
 import { Avatar } from '@/components/layout/Sidebar'
@@ -109,6 +109,11 @@ export function TaskBoardClient({ initialTasks, users, departments, currentUserI
   const [activeTask,    setActiveTask]    = useState<TaskRow | null>(null)
   const [selectedTask,  setSelectedTask]  = useState<TaskRow | null>(null)
   const [showAddModal,  setShowAddModal]  = useState(false)
+  const [showImport,    setShowImport]    = useState(false)
+  const [importFile,    setImportFile]    = useState<File | null>(null)
+  const [importPreview, setImportPreview] = useState<{ rowNum: number; title: string; status: string; priority: string; dueDate: string | null; assigneeId: string | null; error: string | null }[] | null>(null)
+  const [importing,     startImport]     = useTransition()
+  const [importDone,    setImportDone]   = useState<string | null>(null)
   const [viewType,      setViewType]      = useState<ViewType>(() => {
     if (typeof window === 'undefined') return 'kanban'
     return (localStorage.getItem('tasks:view') as ViewType) ?? 'kanban'
@@ -291,6 +296,43 @@ export function TaskBoardClient({ initialTasks, users, departments, currentUserI
     startTransition(() => router.replace(`/tasks?${params.toString()}`, { scroll: false }))
   }, [router, searchParams])
 
+  // ── CSV Export / Import ────────────────────────────────────────────────────
+  function handleExport() {
+    const params = new URLSearchParams()
+    if (filterPriority !== 'all') params.set('priority', filterPriority)
+    if (filterAssignee !== 'all') params.set('assignee', filterAssignee)
+    window.open(`/api/tasks/export?${params.toString()}`, '_blank')
+  }
+
+  async function handleImportPreview(file: File) {
+    setImportFile(file)
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('preview', 'true')
+    const res = await fetch('/api/tasks/import', { method: 'POST', body: fd })
+    if (res.ok) {
+      const data = await res.json()
+      setImportPreview(data.rows)
+    }
+  }
+
+  function handleImportConfirm() {
+    if (!importFile) return
+    startImport(async () => {
+      const fd = new FormData()
+      fd.append('file', importFile)
+      const res = await fetch('/api/tasks/import', { method: 'POST', body: fd })
+      if (res.ok) {
+        const data = await res.json()
+        setImportDone(`Imported ${data.imported} task${data.imported !== 1 ? 's' : ''}${data.skipped > 0 ? `, ${data.skipped} skipped` : ''}.`)
+        setImportFile(null)
+        setImportPreview(null)
+        router.refresh()
+        setTimeout(() => { setShowImport(false); setImportDone(null) }, 2500)
+      }
+    })
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -335,6 +377,23 @@ export function TaskBoardClient({ initialTasks, users, departments, currentUserI
               </button>
             ))}
           </div>
+
+          <button
+            onClick={handleExport}
+            title="Export tasks as CSV"
+            className="flex items-center gap-1.5 text-[13px] px-3 py-2 rounded-[10px]"
+            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+          >
+            <Download size={14} /> Export
+          </button>
+          <button
+            onClick={() => setShowImport(true)}
+            title="Import tasks from CSV"
+            className="flex items-center gap-1.5 text-[13px] px-3 py-2 rounded-[10px]"
+            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+          >
+            <Upload size={14} /> Import
+          </button>
 
           <button
             onClick={() => setShowAddModal(true)}
@@ -449,6 +508,90 @@ export function TaskBoardClient({ initialTasks, users, departments, currentUserI
           onClose={() => setShowAddModal(false)}
           onCreated={addTask}
         />
+      )}
+
+      {/* ── CSV Import modal ── */}
+      {showImport && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
+            style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-primary)' }}>
+            <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--border-primary)' }}>
+              <h3 className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Import Tasks from CSV</h3>
+              <button onClick={() => { setShowImport(false); setImportFile(null); setImportPreview(null); setImportDone(null) }}>
+                <X size={16} style={{ color: 'var(--text-tertiary)' }} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {importDone ? (
+                <div className="flex items-center gap-2 text-sm py-4 justify-center" style={{ color: '#34C759' }}>
+                  <Check size={18} /> {importDone}
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                    CSV columns: <code className="font-mono">title</code>, <code className="font-mono">description</code>, <code className="font-mono">status</code>, <code className="font-mono">priority</code>, <code className="font-mono">due_date</code>, <code className="font-mono">assignee_email</code>
+                  </p>
+
+                  {!importPreview && (
+                    <label className="flex flex-col items-center gap-2 py-8 rounded-xl cursor-pointer"
+                      style={{ border: '2px dashed var(--border-primary)', background: 'var(--bg-secondary)' }}>
+                      <Upload size={20} style={{ color: 'var(--text-tertiary)' }} />
+                      <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>Click to select CSV file</span>
+                      <input type="file" accept=".csv,text/csv" className="hidden" onChange={e => e.target.files?.[0] && handleImportPreview(e.target.files[0])} />
+                    </label>
+                  )}
+
+                  {importPreview && (
+                    <>
+                      <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border-primary)' }}>
+                        <div className="px-3 py-2 text-xs font-medium" style={{ background: 'var(--bg-secondary)', color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-primary)' }}>
+                          Preview — {importPreview.length} rows ({importPreview.filter(r => !r.error).length} valid)
+                        </div>
+                        <div className="max-h-48 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800">
+                          {importPreview.slice(0, 10).map(r => (
+                            <div key={r.rowNum} className="flex items-center gap-2 px-3 py-2">
+                              {r.error
+                                ? <X size={12} style={{ color: 'var(--color-red)', flexShrink: 0 }} />
+                                : <Check size={12} style={{ color: '#34C759', flexShrink: 0 }} />
+                              }
+                              <span className="text-xs flex-1 truncate" style={{ color: r.error ? 'var(--color-red)' : 'var(--text-primary)' }}>
+                                {r.title || r.error}
+                              </span>
+                              <span className="text-[10px]" style={{ color: 'var(--text-tertiary)' }}>{r.status} · {r.priority}</span>
+                            </div>
+                          ))}
+                          {importPreview.length > 10 && (
+                            <div className="px-3 py-2 text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                              + {importPreview.length - 10} more rows
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => { setImportFile(null); setImportPreview(null) }}
+                          className="flex-1 py-2 text-sm rounded-xl"
+                          style={{ background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border-primary)' }}
+                        >
+                          Change File
+                        </button>
+                        <button
+                          onClick={handleImportConfirm}
+                          disabled={importing || importPreview.filter(r => !r.error).length === 0}
+                          className="flex-1 py-2 text-sm rounded-xl text-white font-medium"
+                          style={{ background: 'var(--color-blue)', opacity: importing ? 0.7 : 1 }}
+                        >
+                          {importing ? 'Importing…' : `Import ${importPreview.filter(r => !r.error).length} Tasks`}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

@@ -296,7 +296,7 @@
 ---
 
 ### Task 16 — Phase 6B: Integrations (GitHub, CSV Import/Export, Webhooks)
-**Status**: 🔲 TODO
+**Status**: ✅ DONE
 
 **What to build**:
 - **GitHub/GitLab**: OAuth connect in Settings → Integrations; link repo to project; webhook receiver closes tasks on PR merge

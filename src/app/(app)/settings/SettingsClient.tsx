@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, useTransition } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Settings, Users, Building2, Sun, Moon, Monitor,
   Plus, Trash2, Edit2, X, Check, Eye, EyeOff,
+  GitBranch, RefreshCw, AlertCircle, Unlink,
 } from 'lucide-react'
 import { useTheme } from '@/components/ui/ThemeProvider'
 import { Avatar } from '@/components/layout/Sidebar'
@@ -37,7 +38,7 @@ type Department = {
   memberCount: number
 }
 
-const TABS = ['General', 'Team', 'Departments', 'Appearance', 'Notifications'] as const
+const TABS = ['General', 'Team', 'Departments', 'Appearance', 'Notifications', 'Integrations'] as const
 type Tab = (typeof TABS)[number]
 
 const PRESET_COLORS = [
@@ -136,6 +137,7 @@ export function SettingsClient({
         {activeTab === 'Departments'   && <DepartmentsTab departments={departments} isAdmin={isAdmin} />}
         {activeTab === 'Appearance'    && <AppearanceTab />}
         {activeTab === 'Notifications' && <NotificationsTab currentUser={currentUser} />}
+        {activeTab === 'Integrations'  && <IntegrationsTab />}
       </div>
     </div>
   )
@@ -989,4 +991,113 @@ const inputStyle: React.CSSProperties = {
   background:  'var(--bg-primary)',
   color:       'var(--text-primary)',
   outline:     'none',
+}
+
+// ─── Integrations Tab ─────────────────────────────────────────────────────────
+
+type GitHubStatus = {
+  connected:  boolean
+  login?:     string
+  avatarUrl?: string | null
+  repos?:     { fullName: string; private: boolean }[]
+}
+
+function IntegrationsTab() {
+  const searchParams = useSearchParams()
+  const [gh, setGh]           = useState<GitHubStatus | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [disconnecting, startDisconnect] = useTransition()
+
+  useEffect(() => {
+    fetch('/api/github/repos').then(r => r.json()).then(setGh).finally(() => setLoading(false))
+  }, [])
+
+  const statusMsg = searchParams.get('github')
+
+  function disconnect() {
+    startDisconnect(async () => {
+      await fetch('/api/github/repos', { method: 'DELETE' })
+      setGh({ connected: false })
+    })
+  }
+
+  return (
+    <div className="p-6 space-y-6 max-w-xl">
+      <div>
+        <h3 className="text-base font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Integrations</h3>
+        <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Connect external services to enhance your workflow.</p>
+      </div>
+
+      {statusMsg === 'connected' && (
+        <div className="text-xs px-3 py-2 rounded-xl flex items-center gap-2" style={{ background: '#34C75915', color: '#34C759' }}>
+          <Check size={13} /> GitHub connected successfully.
+        </div>
+      )}
+      {statusMsg === 'error' && (
+        <div className="text-xs px-3 py-2 rounded-xl flex items-center gap-2" style={{ background: 'rgba(255,59,48,0.1)', color: 'var(--color-red)' }}>
+          <AlertCircle size={13} /> GitHub connection failed. Please try again.
+        </div>
+      )}
+
+      {/* GitHub */}
+      <div className="glass-card rounded-2xl p-5" style={{ border: '1px solid var(--border-primary)' }}>
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--bg-tertiary)' }}>
+              <GitBranch size={20} style={{ color: 'var(--text-primary)' }} />
+            </div>
+            <div>
+              <p className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>GitHub</p>
+              <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                Close tasks automatically when a PR is merged.
+              </p>
+            </div>
+          </div>
+          {loading ? (
+            <RefreshCw size={16} className="animate-spin" style={{ color: 'var(--text-tertiary)' }} />
+          ) : gh?.connected ? (
+            <button
+              onClick={disconnect}
+              disabled={disconnecting}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl"
+              style={{ background: 'rgba(255,59,48,0.1)', color: 'var(--color-red)' }}
+            >
+              <Unlink size={12} /> Disconnect
+            </button>
+          ) : (
+            <a
+              href="/api/github/connect"
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl text-white font-medium"
+              style={{ background: '#24292e' }}
+            >
+              <GitBranch size={12} /> Connect GitHub
+            </a>
+          )}
+        </div>
+
+        {gh?.connected && (
+          <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--border-primary)' }}>
+            <div className="flex items-center gap-2 mb-3">
+              {gh.avatarUrl && <img src={gh.avatarUrl} alt="" className="h-5 w-5 rounded-full" />}
+              <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>@{gh.login}</span>
+            </div>
+            <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
+              To auto-close tasks on PR merge, add <code className="font-mono">Closes: &lt;task-uuid&gt;</code> in your PR description, then configure a GitHub webhook pointing to:
+            </p>
+            <code className="block text-[11px] font-mono px-3 py-2 rounded-lg break-all" style={{ background: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
+              {typeof window !== 'undefined' ? window.location.origin : ''}/api/webhooks/github
+            </code>
+          </div>
+        )}
+      </div>
+
+      {/* Zapier / Make callout */}
+      <div className="rounded-2xl p-4" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-primary)' }}>
+        <p className="text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>Zapier & Make</p>
+        <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+          Use Outbound Webhooks in each Project's Webhooks tab to push task events to Zapier, Make, or any HTTPS endpoint. Supports <code className="font-mono">task.created</code>, <code className="font-mono">task.status_changed</code>, and more.
+        </p>
+      </div>
+    </div>
+  )
 }

@@ -674,6 +674,68 @@ export const portalDocApprovals = pgTable('portal_doc_approvals', {
   createdAt:   timestamp('created_at').defaultNow().notNull(),
 })
 
+// ─── GitHub Integration ───────────────────────────────────────────────────────
+
+export const githubConnections = pgTable('github_connections', {
+  id:          uuid('id').primaryKey().defaultRandom(),
+  userId:      uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  login:       text('login').notNull(),
+  avatarUrl:   text('avatar_url'),
+  accessToken: text('access_token').notNull(),
+  createdAt:   timestamp('created_at').defaultNow().notNull(),
+  updatedAt:   timestamp('updated_at').defaultNow().notNull(),
+})
+
+export const projectRepos = pgTable('project_repos', {
+  id:           uuid('id').primaryKey().defaultRandom(),
+  projectId:    uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  connectionId: uuid('connection_id').notNull().references(() => githubConnections.id, { onDelete: 'cascade' }),
+  repoFullName: text('repo_full_name').notNull(),
+  createdAt:    timestamp('created_at').defaultNow().notNull(),
+})
+
+export const githubConnectionsRelations = relations(githubConnections, ({ one, many }) => ({
+  user:  one(users, { fields: [githubConnections.userId], references: [users.id] }),
+  repos: many(projectRepos),
+}))
+
+export const projectReposRelations = relations(projectRepos, ({ one }) => ({
+  project:    one(projects,           { fields: [projectRepos.projectId],    references: [projects.id] }),
+  connection: one(githubConnections,  { fields: [projectRepos.connectionId], references: [githubConnections.id] }),
+}))
+
+// ─── Outbound Webhooks ────────────────────────────────────────────────────────
+
+export const outboundWebhooks = pgTable('outbound_webhooks', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  url:       text('url').notNull(),
+  events:    jsonb('events').$type<string[]>().default([]).notNull(),
+  secret:    text('secret'),
+  active:    boolean('active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+export const webhookDeliveries = pgTable('webhook_deliveries', {
+  id:           uuid('id').primaryKey().defaultRandom(),
+  webhookId:    uuid('webhook_id').notNull().references(() => outboundWebhooks.id, { onDelete: 'cascade' }),
+  event:        text('event').notNull(),
+  payload:      jsonb('payload').$type<Record<string, unknown>>().notNull(),
+  statusCode:   integer('status_code'),
+  responseBody: text('response_body'),
+  success:      boolean('success').default(false).notNull(),
+  deliveredAt:  timestamp('delivered_at').defaultNow().notNull(),
+})
+
+export const outboundWebhooksRelations = relations(outboundWebhooks, ({ one, many }) => ({
+  project:    one(projects,          { fields: [outboundWebhooks.projectId], references: [projects.id] }),
+  deliveries: many(webhookDeliveries),
+}))
+
+export const webhookDeliveriesRelations = relations(webhookDeliveries, ({ one }) => ({
+  webhook: one(outboundWebhooks, { fields: [webhookDeliveries.webhookId], references: [outboundWebhooks.id] }),
+}))
+
 export const clientPortalsRelations = relations(clientPortals, ({ one, many }) => ({
   project: one(projects, { fields: [clientPortals.projectId], references: [projects.id] }),
   updates: many(portalUpdates),
