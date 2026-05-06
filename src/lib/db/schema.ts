@@ -300,10 +300,11 @@ export const milestonesRelations = relations(milestones, ({ one }) => ({
 
 // ─── Projects ─────────────────────────────────────────────────────────────────
 export const projectsRelations = relations(projects, ({ one, many }) => ({
-  owner:   one(users, { fields: [projects.ownerId], references: [users.id] }),
-  members: many(projectMembers),
-  tasks:   many(tasks),
-  meetings: many(meetings),
+  owner:     one(users, { fields: [projects.ownerId], references: [users.id] }),
+  members:   many(projectMembers),
+  tasks:     many(tasks),
+  meetings:  many(meetings),
+  documents: many(documents),
 }))
 
 export const projectMembersRelations = relations(projectMembers, ({ one }) => ({
@@ -351,3 +352,65 @@ export const taskTemplates = pgTable('task_templates', {
   createdBy:   uuid('created_by').references(() => users.id),
   createdAt:   timestamp('created_at').defaultNow().notNull(),
 })
+
+// ─── Documents & Wiki ─────────────────────────────────────────────────────────
+export const documentStatusEnum = pgEnum('document_status', ['draft', 'review', 'approved'])
+
+export const documents = pgTable('documents', {
+  id:          uuid('id').primaryKey().defaultRandom(),
+  projectId:   uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+  title:       text('title').notNull(),
+  contentJson: jsonb('content_json').$type<Record<string, unknown>>(),
+  status:      documentStatusEnum('status').default('draft').notNull(),
+  createdBy:   uuid('created_by').references(() => users.id),
+  updatedBy:   uuid('updated_by').references(() => users.id),
+  updatedAt:   timestamp('updated_at').defaultNow().notNull(),
+  createdAt:   timestamp('created_at').defaultNow().notNull(),
+})
+
+export const documentVersions = pgTable('document_versions', {
+  id:            uuid('id').primaryKey().defaultRandom(),
+  documentId:    uuid('document_id').notNull().references(() => documents.id, { onDelete: 'cascade' }),
+  versionNumber: integer('version_number').notNull(),
+  contentJson:   jsonb('content_json').$type<Record<string, unknown>>(),
+  savedBy:       uuid('saved_by').references(() => users.id),
+  savedAt:       timestamp('saved_at').defaultNow().notNull(),
+})
+
+export const documentsRelations = relations(documents, ({ one, many }) => ({
+  project:  one(projects,          { fields: [documents.projectId],  references: [projects.id] }),
+  creator:  one(users,             { fields: [documents.createdBy],  references: [users.id], relationName: 'doc_creator' }),
+  editor:   one(users,             { fields: [documents.updatedBy],  references: [users.id], relationName: 'doc_editor' }),
+  versions: many(documentVersions),
+}))
+
+export const documentVersionsRelations = relations(documentVersions, ({ one }) => ({
+  document: one(documents, { fields: [documentVersions.documentId], references: [documents.id] }),
+  saver:    one(users,     { fields: [documentVersions.savedBy],    references: [users.id] }),
+}))
+
+// ─── Workload / Capacity Planning ─────────────────────────────────────────────
+export const availabilityTypeEnum = pgEnum('availability_type', ['holiday', 'leave', 'partial'])
+
+export const userAvailability = pgTable('user_availability', {
+  id:             uuid('id').primaryKey().defaultRandom(),
+  userId:         uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  date:           date('date').notNull(),
+  type:           availabilityTypeEnum('type').notNull(),
+  hoursAvailable: integer('hours_available').default(0).notNull(),
+  note:           text('note'),
+  createdAt:      timestamp('created_at').defaultNow().notNull(),
+})
+
+export const userSkills = pgTable('user_skills', {
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  skill:  text('skill').notNull(),
+}, (t) => [primaryKey({ columns: [t.userId, t.skill] })])
+
+export const userAvailabilityRelations = relations(userAvailability, ({ one }) => ({
+  user: one(users, { fields: [userAvailability.userId], references: [users.id] }),
+}))
+
+export const userSkillsRelations = relations(userSkills, ({ one }) => ({
+  user: one(users, { fields: [userSkills.userId], references: [users.id] }),
+}))

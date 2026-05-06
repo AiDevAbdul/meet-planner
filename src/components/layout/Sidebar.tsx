@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, CheckSquare, MessageSquare, FileText,
   Users, Settings, LogOut, Filter, BarChart2, CalendarClock,
-  FolderKanban,
+  FolderKanban, Activity,
 } from 'lucide-react'
 import { signOut, useSession } from 'next-auth/react'
 
@@ -25,6 +25,9 @@ export function Sidebar() {
   const pathname = usePathname()
   const { data: session } = useSession()
   const user = session?.user
+
+  const peopleActive   = pathname === '/people' || pathname.startsWith('/people/')
+  const workloadActive = pathname === '/people/workload' || pathname.startsWith('/people/workload/')
 
   return (
     <aside
@@ -52,22 +55,47 @@ export function Sidebar() {
           Menu
         </p>
         {navItems.map(({ href, icon: Icon, label }) => {
-          const active = pathname === href || pathname.startsWith(href + '/')
+          const active = href === '/people'
+            ? peopleActive
+            : pathname === href || pathname.startsWith(href + '/')
           return (
-            <Link
-              key={href}
-              href={href}
-              className="flex items-center gap-2.5 px-3 py-2 rounded-[8px] text-[15px] font-medium transition-all mb-0.5"
-              style={{
-                color:      active ? 'var(--color-blue)'    : 'var(--text-secondary)',
-                background: active ? 'rgba(0,122,255,0.10)' : 'transparent',
-                borderLeft: active ? '3px solid var(--color-blue)' : '3px solid transparent',
-              }}
-              aria-current={active ? 'page' : undefined}
-            >
-              <Icon size={18} strokeWidth={1.5} />
-              {label}
-            </Link>
+            <div key={href}>
+              <Link
+                href={href}
+                className="flex items-center gap-2.5 px-3 py-2 rounded-[8px] text-[15px] font-medium transition-all mb-0.5"
+                style={{
+                  color:      active ? 'var(--color-blue)'    : 'var(--text-secondary)',
+                  background: active ? 'rgba(0,122,255,0.10)' : 'transparent',
+                  borderLeft: active ? '3px solid var(--color-blue)' : '3px solid transparent',
+                }}
+                aria-current={active ? 'page' : undefined}
+              >
+                <Icon size={18} strokeWidth={1.5} />
+                {label}
+              </Link>
+
+              {/* People sub-nav */}
+              {href === '/people' && peopleActive && (
+                <Link
+                  href="/people/workload"
+                  className="flex items-center gap-2 rounded-[7px] text-[13px] font-medium transition-all mb-0.5"
+                  style={{
+                    marginLeft:  24,
+                    paddingLeft: 10,
+                    paddingTop:  5,
+                    paddingBottom: 5,
+                    paddingRight: 8,
+                    color:      workloadActive ? 'var(--color-blue)'    : 'var(--text-secondary)',
+                    background: workloadActive ? 'rgba(0,122,255,0.08)' : 'transparent',
+                    borderLeft: workloadActive ? '2px solid var(--color-blue)' : '2px solid var(--border)',
+                  }}
+                  aria-current={workloadActive ? 'page' : undefined}
+                >
+                  <Activity size={14} strokeWidth={1.5} />
+                  Workload
+                </Link>
+              )}
+            </div>
           )
         })}
       </nav>

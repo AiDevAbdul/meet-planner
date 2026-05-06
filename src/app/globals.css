@@ -173,3 +173,76 @@ body {
   background: var(--border);
   border-radius: var(--radius-sm);
 }
+
+/* ─── Rich Text Editor (Tiptap) ──────────────────────────────────────────────── */
+.rich-editor .tiptap {
+  min-height: 240px;
+  padding: 16px;
+  outline: none;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-primary);
+}
+
+.rich-editor .tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--text-tertiary);
+  pointer-events: none;
+  height: 0;
+}
+
+.rich-editor .tiptap h1 { font-size: 1.5rem; font-weight: 700; margin: 1em 0 0.4em; line-height: 1.3; color: var(--text-primary); }
+.rich-editor .tiptap h2 { font-size: 1.25rem; font-weight: 600; margin: 0.9em 0 0.4em; line-height: 1.3; color: var(--text-primary); }
+.rich-editor .tiptap h3 { font-size: 1rem; font-weight: 600; margin: 0.8em 0 0.3em; line-height: 1.4; color: var(--text-primary); }
+
+.rich-editor .tiptap ul,
+.rich-editor .tiptap ol { padding-left: 1.5em; margin: 0.5em 0; }
+.rich-editor .tiptap li { margin: 0.25em 0; }
+.rich-editor .tiptap ul li { list-style-type: disc; }
+.rich-editor .tiptap ol li { list-style-type: decimal; }
+
+.rich-editor .tiptap blockquote {
+  border-left: 3px solid var(--color-blue);
+  margin: 0.75em 0;
+  padding: 0.25em 1em;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.rich-editor .tiptap code {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.1em 0.4em;
+  font-size: 0.875em;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  color: var(--color-purple);
+}
+
+.rich-editor .tiptap pre {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 0.75em 0;
+  overflow-x: auto;
+}
+
+.rich-editor .tiptap pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+}
+
+.rich-editor .tiptap hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1em 0;
+}
+
+.rich-editor .tiptap strong { font-weight: 600; }
+.rich-editor .tiptap em { font-style: italic; }
+.rich-editor .tiptap s { text-decoration: line-through; color: var(--text-secondary); }

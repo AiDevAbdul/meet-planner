@@ -7,7 +7,7 @@ import {
   Folder, ArrowLeft, Settings, Users, CheckSquare,
   FileText, Calendar, ChevronDown, MoreHorizontal,
   Plus, AlertCircle, Clock, CheckCircle2,
-  Edit2, Trash2, UserPlus, Sparkles,
+  Edit2, Trash2, UserPlus, Sparkles, BookOpen,
 } from 'lucide-react'
 import { Avatar } from '@/components/layout/Sidebar'
 
@@ -74,7 +74,7 @@ type Project = {
   ownerImage: string | null
 }
 
-type Tab = 'overview' | 'tasks' | 'meetings' | 'members' | 'settings'
+type Tab = 'overview' | 'tasks' | 'meetings' | 'members' | 'documents' | 'settings'
 
 export function ProjectDetailClient({
   project: initialProject,
@@ -115,12 +115,13 @@ export function ProjectDetailClient({
     })
   }
 
-  const tabs: { id: Tab; label: string; icon: React.ElementType; count?: number }[] = [
-    { id: 'overview',  label: 'Overview',  icon: Folder },
-    { id: 'tasks',     label: 'Tasks',     icon: CheckSquare, count: taskStats.total },
-    { id: 'meetings',  label: 'Meetings',  icon: FileText,    count: meetings.length },
-    { id: 'members',   label: 'Members',   icon: Users,       count: members.length },
-    { id: 'settings',  label: 'Settings',  icon: Settings },
+  const tabs: { id: Tab; label: string; icon: React.ElementType; count?: number; href?: string }[] = [
+    { id: 'overview',   label: 'Overview',   icon: Folder },
+    { id: 'tasks',      label: 'Tasks',      icon: CheckSquare, count: taskStats.total },
+    { id: 'meetings',   label: 'Meetings',   icon: FileText,    count: meetings.length },
+    { id: 'members',    label: 'Members',    icon: Users,       count: members.length },
+    { id: 'documents',  label: 'Documents',  icon: BookOpen,    href: `/projects/${project.id}/documents` },
+    { id: 'settings',   label: 'Settings',   icon: Settings },
   ]
 
   return (
@@ -197,16 +198,12 @@ export function ProjectDetailClient({
           {tabs.map(tab => {
             const Icon = tab.icon
             const active = activeTab === tab.id
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-sm font-medium transition-colors"
-                style={{
-                  color:      active ? 'var(--color-blue)'    : 'var(--text-secondary)',
-                  background: active ? 'rgba(0,122,255,0.10)' : 'transparent',
-                }}
-              >
+            const tabStyle = {
+              color:      active ? 'var(--color-blue)'    : 'var(--text-secondary)',
+              background: active ? 'rgba(0,122,255,0.10)' : 'transparent',
+            }
+            const inner = (
+              <>
                 <Icon size={14} strokeWidth={1.5} />
                 {tab.label}
                 {tab.count !== undefined && (
@@ -217,6 +214,28 @@ export function ProjectDetailClient({
                     {tab.count}
                   </span>
                 )}
+              </>
+            )
+            if (tab.href) {
+              return (
+                <Link
+                  key={tab.id}
+                  href={tab.href}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-sm font-medium transition-colors"
+                  style={tabStyle}
+                >
+                  {inner}
+                </Link>
+              )
+            }
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-sm font-medium transition-colors"
+                style={tabStyle}
+              >
+                {inner}
               </button>
             )
           })}

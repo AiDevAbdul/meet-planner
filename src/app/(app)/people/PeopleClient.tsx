@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Users, CheckSquare } from 'lucide-react'
+import Link from 'next/link'
+import { Users, CheckSquare, BarChart2 } from 'lucide-react'
 import { Avatar } from '@/components/layout/Sidebar'
 
 type UserRow = {
@@ -87,6 +88,24 @@ export function PeopleClient({
             {departments.length} {departments.length === 1 ? 'department' : 'departments'}
           </p>
         </div>
+      </div>
+
+      {/* Workload shortcut */}
+      <div className="flex items-center gap-2 mb-4">
+        <Link
+          href="/people/workload"
+          className="flex items-center gap-1.5 text-[13px] font-medium rounded-lg"
+          style={{
+            padding:    '6px 14px',
+            background: 'rgba(0,122,255,0.1)',
+            color:      'var(--color-blue)',
+            border:     '1px solid rgba(0,122,255,0.2)',
+            transition: 'all 150ms ease-out',
+          }}
+        >
+          <BarChart2 size={14} strokeWidth={1.5} />
+          Workload View
+        </Link>
       </div>
 
       {/* Department filter bar */}
