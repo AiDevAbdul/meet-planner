@@ -173,7 +173,7 @@
 ---
 
 ### Task 8 — Phase 4D: Documents & Wiki (Rich Text, Versioning, Approval)
-**Status**: 🔲 TODO
+**Status**: ✅ DONE (commit `fd7c797`)
 
 **Depends on**: Task 5 (scoped to projects)
 
@@ -192,7 +192,7 @@
 ---
 
 ### Task 9 — Phase 4E: Workload View + Capacity Planning
-**Status**: 🔲 TODO
+**Status**: ✅ DONE (commit `fd7c797`)
 
 **Depends on**: Task 5 (projects)
 
