@@ -893,9 +893,39 @@ function Modal({
 
 function NotificationsTab({ currentUser }: { currentUser: CurrentUser }) {
   const isEligible = currentUser.role === 'admin' || currentUser.role === 'manager'
-  const [dailyReport, setDailyReport] = useState(currentUser.dailyReportEmail)
-  const [saving,      setSaving]      = useState(false)
-  const [saved,       setSaved]       = useState(false)
+  const [dailyReport,  setDailyReport]  = useState(currentUser.dailyReportEmail)
+  const [saving,       setSaving]       = useState(false)
+  const [saved,        setSaved]        = useState(false)
+  const [pushEnabled,  setPushEnabled]  = useState(false)
+  const [pushLoading,  setPushLoading]  = useState(false)
+  const [pushSupport,  setPushSupport]  = useState(false)
+
+  useEffect(() => {
+    const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
+    setPushSupport(supported)
+    if (!supported) return
+    navigator.serviceWorker.ready.then(reg =>
+      reg.pushManager.getSubscription().then(sub => setPushEnabled(!!sub))
+    ).catch(() => {})
+  }, [])
+
+  async function togglePush(enable: boolean) {
+    setPushLoading(true)
+    try {
+      const { subscribeToPush, unsubscribeFromPush } = await import('@/components/pwa/PWAInit')
+      if (enable) {
+        const permission = await Notification.requestPermission()
+        if (permission !== 'granted') { setPushLoading(false); return }
+        const sub = await subscribeToPush()
+        setPushEnabled(!!sub)
+      } else {
+        const ok = await unsubscribeFromPush()
+        if (ok) setPushEnabled(false)
+      }
+    } finally {
+      setPushLoading(false)
+    }
+  }
 
   async function toggleDailyReport(value: boolean) {
     setDailyReport(value)
@@ -975,6 +1005,55 @@ function NotificationsTab({ currentUser }: { currentUser: CurrentUser }) {
             />
           </button>
         </div>
+
+        {/* Push notifications toggle */}
+        {pushSupport && (
+          <div
+            className="flex items-start justify-between gap-4 p-4 rounded-[12px]"
+            style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
+          >
+            <div>
+              <p className="text-[14px] font-medium mb-0.5" style={{ color: 'var(--text-primary)' }}>
+                Push Notifications
+              </p>
+              <p className="text-[12px]" style={{ color: 'var(--text-secondary)' }}>
+                Get notified when tasks are assigned, overdue, or meetings start — even when the app isn&apos;t open.
+              </p>
+            </div>
+            <button
+              onClick={() => !pushLoading && togglePush(!pushEnabled)}
+              disabled={pushLoading}
+              aria-pressed={pushEnabled}
+              aria-label="Toggle push notifications"
+              style={{
+                position:    'relative',
+                width:        44,
+                height:       26,
+                borderRadius: 13,
+                background:   pushEnabled ? 'var(--color-green)' : 'var(--border)',
+                border:       'none',
+                cursor:       pushLoading ? 'wait' : 'pointer',
+                transition:   'background 200ms',
+                flexShrink:   0,
+                opacity:      pushLoading ? 0.6 : 1,
+              }}
+            >
+              <span
+                style={{
+                  position:     'absolute',
+                  top:           3,
+                  left:          pushEnabled ? 21 : 3,
+                  width:         20,
+                  height:        20,
+                  borderRadius:  '50%',
+                  background:    '#fff',
+                  boxShadow:     '0 1px 3px rgba(0,0,0,0.15)',
+                  transition:    'left 200ms',
+                }}
+              />
+            </button>
+          </div>
+        )}
       </div>
 
       {saved && (

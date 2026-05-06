@@ -678,6 +678,21 @@ export const portalDocApprovals = pgTable('portal_doc_approvals', {
   createdAt:   timestamp('created_at').defaultNow().notNull(),
 })
 
+// ─── Push Subscriptions ───────────────────────────────────────────────────────
+
+export const pushSubscriptions = pgTable('push_subscriptions', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  userId:    uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  endpoint:  text('endpoint').notNull().unique(),
+  keysAuth:  text('keys_auth').notNull(),
+  keysP256dh: text('keys_p256dh').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+export const pushSubscriptionsRelations = relations(pushSubscriptions, ({ one }) => ({
+  user: one(users, { fields: [pushSubscriptions.userId], references: [users.id] }),
+}))
+
 // ─── Sprints ─────────────────────────────────────────────────────────────────
 
 export const sprintStatusEnum = pgEnum('sprint_status', ['planning', 'active', 'completed'])

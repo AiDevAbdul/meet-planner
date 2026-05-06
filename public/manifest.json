@@ -1,0 +1,20 @@
+{
+  "name": "MeetPlanner",
+  "short_name": "MeetPlanner",
+  "description": "Meeting notes → structured tasks for your team",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#F2F2F7",
+  "theme_color": "#007AFF",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "categories": ["productivity", "business"]
+}

@@ -1,10 +1,11 @@
 'use client'
 
-import { Bell, Search, Square } from 'lucide-react'
+import { Bell, Search, Square, Menu } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState, useRef } from 'react'
 import { NotificationPanel } from '@/components/notifications/NotificationPanel'
 import { CommandPalette } from '@/components/ui/CommandPalette'
+import { useSidebar } from './SidebarContext'
 
 const pageTitles: Record<string, string> = {
   '/dashboard':   'Dashboard',
@@ -33,6 +34,7 @@ function formatElapsed(ms: number): string {
 
 export function Topbar() {
   const pathname   = usePathname()
+  const { toggle: toggleSidebar } = useSidebar()
   const [notifOpen,   setNotifOpen]   = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [timer,       setTimer]       = useState<TimerData | null>(null)
@@ -112,12 +114,27 @@ export function Topbar() {
   return (
     <>
       <header
-        className="glass-topbar fixed top-0 right-0 z-20 flex items-center justify-between px-6"
-        style={{ left: 240, height: 52 }}
+        className="glass-topbar fixed top-0 right-0 z-20 flex items-center justify-between px-4 md:px-6"
+        style={{ left: 0, height: 52 }}
       >
-        <h1 className="text-[17px] font-semibold" style={{ color: 'var(--text-primary)' }}>
-          {title}
-        </h1>
+        <div className="flex items-center gap-3">
+          {/* Hamburger — mobile only */}
+          <button
+            onClick={toggleSidebar}
+            className="md:hidden flex items-center justify-center w-9 h-9 rounded-[8px] transition-colors"
+            style={{ color: 'var(--text-secondary)', minWidth: 44, minHeight: 44 }}
+            aria-label="Open navigation"
+          >
+            <Menu size={20} strokeWidth={1.5} />
+          </button>
+
+          {/* Spacer on desktop to account for sidebar width */}
+          <div className="hidden md:block" style={{ width: 240 }} />
+
+          <h1 className="text-[17px] font-semibold" style={{ color: 'var(--text-primary)' }}>
+            {title}
+          </h1>
+        </div>
 
         <div className="flex items-center gap-2">
           {/* Active timer pill */}

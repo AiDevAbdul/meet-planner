@@ -246,3 +246,47 @@ body {
 .rich-editor .tiptap strong { font-weight: 600; }
 .rich-editor .tiptap em { font-style: italic; }
 .rich-editor .tiptap s { text-decoration: line-through; color: var(--text-secondary); }
+
+/* ─── PWA / Mobile ───────────────────────────────────────────────────────────── */
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+
+/* Ensure tap targets meet 44px minimum on mobile */
+@media (max-width: 767px) {
+  button, a, [role="button"] {
+    min-height: 44px;
+  }
+
+  /* Mobile kanban: snap-scroll horizontal between columns */
+  .kanban-scroll {
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+  .kanban-column {
+    scroll-snap-align: start;
+    min-width: calc(100vw - 2rem);
+    flex-shrink: 0;
+  }
+}
+
+/* Offline banner */
+.offline-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 10px 16px;
+  background: var(--color-orange);
+  color: white;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  z-index: 9999;
+  transform: translateY(100%);
+  transition: transform 200ms ease-out;
+}
+.offline-banner.visible {
+  transform: translateY(0);
+}
