@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { CheckSquare, Clock, TrendingUp, Users, FileText, ChevronDown, ChevronUp, Mail } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { CheckSquare, Clock, TrendingUp, Users, FileText, ChevronDown, ChevronUp, Mail, Download } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 
 type StatusBreakdown  = { status: string;   count: number }
@@ -49,7 +49,7 @@ const PRIORITY_COLORS: Record<string, string> = {
   low:      'var(--color-yellow)',
 }
 
-const TABS = ['Overview', 'Reports'] as const
+const TABS = ['Overview', 'Reports', 'Time'] as const
 type Tab = (typeof TABS)[number]
 
 export function AnalyticsClient({
@@ -114,6 +114,10 @@ export function AnalyticsClient({
 
       {activeTab === 'Reports' && (
         <ReportsTab reports={dailyReports} />
+      )}
+
+      {activeTab === 'Time' && (
+        <TimeTab />
       )}
     </div>
   )
@@ -331,6 +335,155 @@ function ReportsTab({ reports }: { reports: DailyReport[] }) {
         )
       })}
     </div>
+  )
+}
+
+// ─── Time tab ─────────────────────────────────────────────────────────────────
+
+type TimeReportData = {
+  totalWeekHours:  number
+  totalMonthHours: number
+  byPersonWeek:    { userId: string | null; name: string; hours: number }[]
+  byPersonMonth:   { userId: string | null; name: string; hours: number }[]
+  byProject:       { projectId: string | null; projectName: string; hours: number }[]
+}
+
+function TimeTab() {
+  const [data,    setData]    = useState<TimeReportData | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/reports/time')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setData(d) })
+      .finally(() => setLoading(false))
+  }, [])
+
+  function exportCsv() {
+    window.open('/api/reports/time?format=csv', '_blank')
+  }
+
+  if (loading) {
+    return (
+      <div className="glass-card p-10 flex items-center justify-center gap-3">
+        <Clock size={18} strokeWidth={1.5} style={{ color: 'var(--text-tertiary)' }} className="animate-spin" />
+        <span className="text-[14px]" style={{ color: 'var(--text-tertiary)' }}>Loading time data…</span>
+      </div>
+    )
+  }
+
+  if (!data) {
+    return (
+      <div className="glass-card p-10 text-center">
+        <p className="text-[14px]" style={{ color: 'var(--text-tertiary)' }}>No time data available.</p>
+      </div>
+    )
+  }
+
+  const maxWeek    = Math.max(...data.byPersonWeek.map(r => r.hours), 1)
+  const maxMonth   = Math.max(...data.byPersonMonth.map(r => r.hours), 1)
+  const maxProject = Math.max(...data.byProject.map(r => r.hours), 1)
+
+  return (
+    <>
+      {/* Summary metrics */}
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        <MetricCard
+          icon={<Clock size={20} strokeWidth={1.5} />}
+          label="This Week"
+          value={`${data.totalWeekHours}h`}
+          sub="Total hours logged this week"
+          color="var(--color-blue)"
+        />
+        <MetricCard
+          icon={<TrendingUp size={20} strokeWidth={1.5} />}
+          label="This Month"
+          value={`${data.totalMonthHours}h`}
+          sub="Total hours logged this month"
+          color="var(--color-purple)"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* By person this week */}
+        <div className="glass-card p-5">
+          <h2 className="text-[15px] font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
+            Hours by Person (This Week)
+          </h2>
+          {data.byPersonWeek.length === 0 ? (
+            <p className="text-[13px]" style={{ color: 'var(--text-tertiary)' }}>No entries this week</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {data.byPersonWeek.map(r => (
+                <BarRow
+                  key={r.userId ?? r.name}
+                  label={r.name}
+                  count={r.hours}
+                  max={maxWeek}
+                  color="var(--color-blue)"
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* By person this month */}
+        <div className="glass-card p-5">
+          <h2 className="text-[15px] font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
+            Hours by Person (This Month)
+          </h2>
+          {data.byPersonMonth.length === 0 ? (
+            <p className="text-[13px]" style={{ color: 'var(--text-tertiary)' }}>No entries this month</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {data.byPersonMonth.map(r => (
+                <BarRow
+                  key={r.userId ?? r.name}
+                  label={r.name}
+                  count={r.hours}
+                  max={maxMonth}
+                  color="var(--color-purple)"
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* By project */}
+      <div className="glass-card p-5 mb-6">
+        <h2 className="text-[15px] font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
+          Hours by Project (This Month)
+        </h2>
+        {data.byProject.length === 0 ? (
+          <p className="text-[13px]" style={{ color: 'var(--text-tertiary)' }}>No project entries this month</p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {data.byProject.map(r => (
+              <BarRow
+                key={r.projectId ?? r.projectName}
+                label={r.projectName}
+                count={r.hours}
+                max={maxProject}
+                color="var(--color-green)"
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Export */}
+      <div className="flex justify-end">
+        <button
+          onClick={exportCsv}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-[8px] text-[13px] font-medium transition-all hover:opacity-80"
+          style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+        >
+          <Download size={14} strokeWidth={1.5} />
+          Export CSV
+        </button>
+      </div>
+    </>
   )
 }
 

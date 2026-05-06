@@ -25,6 +25,7 @@ export const notifTypeEnum = pgEnum('notif_type', [
   'meeting_request_submitted', 'meeting_request_approved',
   'meeting_request_rejected', 'meeting_reminder',
   'minutes_ready_for_review', 'milestone_due', 'goal_checkin_due',
+  'budget_alert_80', 'budget_alert_100',
 ])
 
 export const milestoneStatusEnum = pgEnum('milestone_status', ['pending', 'in_progress', 'completed'])
@@ -80,6 +81,7 @@ export const users = pgTable('users', {
   googleId:         text('google_id').unique(),
   passwordHash:     text('password_hash'),
   dailyReportEmail: boolean('daily_report_email').default(true).notNull(),
+  hourlyRateCents:  integer('hourly_rate_cents'),
   createdAt:        timestamp('created_at').defaultNow().notNull(),
 })
 
@@ -190,17 +192,19 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   channelMembers: many(channelMembers),
   messages:       many(messages),
   notifications:  many(notifications),
+  timeEntries:    many(timeEntries),
 }))
 
 export const tasksRelations = relations(tasks, ({ one, many }) => ({
-  assignee:   one(users,       { fields: [tasks.assigneeId],   references: [users.id],       relationName: 'assignee' }),
-  creator:    one(users,       { fields: [tasks.createdBy],    references: [users.id],       relationName: 'creator' }),
-  meeting:    one(meetings,    { fields: [tasks.meetingId],    references: [meetings.id] }),
-  department: one(departments, { fields: [tasks.departmentId], references: [departments.id] }),
-  project:    one(projects,    { fields: [tasks.projectId],    references: [projects.id] }),
-  parent:     one(tasks,       { fields: [tasks.parentTaskId], references: [tasks.id],       relationName: 'parent_child' }),
-  subtasks:   many(tasks,      { relationName: 'parent_child' }),
-  milestones: many(milestones),
+  assignee:    one(users,       { fields: [tasks.assigneeId],   references: [users.id],       relationName: 'assignee' }),
+  creator:     one(users,       { fields: [tasks.createdBy],    references: [users.id],       relationName: 'creator' }),
+  meeting:     one(meetings,    { fields: [tasks.meetingId],    references: [meetings.id] }),
+  department:  one(departments, { fields: [tasks.departmentId], references: [departments.id] }),
+  project:     one(projects,    { fields: [tasks.projectId],    references: [projects.id] }),
+  parent:      one(tasks,       { fields: [tasks.parentTaskId], references: [tasks.id],       relationName: 'parent_child' }),
+  subtasks:    many(tasks,      { relationName: 'parent_child' }),
+  milestones:  many(milestones),
+  timeEntries: many(timeEntries),
 }))
 
 export const channelsRelations = relations(channels, ({ one, many }) => ({
@@ -300,11 +304,13 @@ export const milestonesRelations = relations(milestones, ({ one }) => ({
 
 // ─── Projects ─────────────────────────────────────────────────────────────────
 export const projectsRelations = relations(projects, ({ one, many }) => ({
-  owner:     one(users, { fields: [projects.ownerId], references: [users.id] }),
-  members:   many(projectMembers),
-  tasks:     many(tasks),
-  meetings:  many(meetings),
-  documents: many(documents),
+  owner:           one(users, { fields: [projects.ownerId], references: [users.id] }),
+  members:         many(projectMembers),
+  tasks:           many(tasks),
+  meetings:        many(meetings),
+  documents:       many(documents),
+  timeEntries:     many(timeEntries),
+  projectExpenses: many(projectExpenses),
 }))
 
 export const projectMembersRelations = relations(projectMembers, ({ one }) => ({
@@ -475,4 +481,42 @@ export const goalTaskLinksRelations = relations(goalTaskLinks, ({ one }) => ({
   goal:      one(goals,      { fields: [goalTaskLinks.goalId],      references: [goals.id] }),
   keyResult: one(keyResults, { fields: [goalTaskLinks.keyResultId], references: [keyResults.id] }),
   task:      one(tasks,      { fields: [goalTaskLinks.taskId],      references: [tasks.id] }),
+}))
+
+// ─── Time Tracking ────────────────────────────────────────────────────────────
+
+export const timeEntries = pgTable('time_entries', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  taskId:    uuid('task_id').references(() => tasks.id, { onDelete: 'set null' }),
+  projectId: uuid('project_id').references(() => projects.id, { onDelete: 'set null' }),
+  userId:    uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  date:      date('date').notNull(),
+  minutes:   integer('minutes').notNull(),
+  note:      text('note'),
+  billable:  boolean('billable').default(false).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
+export const projectExpenses = pgTable('project_expenses', {
+  id:          uuid('id').primaryKey().defaultRandom(),
+  projectId:   uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  description: text('description').notNull(),
+  amountCents: integer('amount_cents').notNull(),
+  date:        date('date'),
+  createdBy:   uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt:   timestamp('created_at').defaultNow().notNull(),
+})
+
+// ─── Time Tracking Relations ──────────────────────────────────────────────────
+
+export const timeEntriesRelations = relations(timeEntries, ({ one }) => ({
+  user:    one(users,    { fields: [timeEntries.userId],    references: [users.id] }),
+  task:    one(tasks,    { fields: [timeEntries.taskId],    references: [tasks.id] }),
+  project: one(projects, { fields: [timeEntries.projectId], references: [projects.id] }),
+}))
+
+export const projectExpensesRelations = relations(projectExpenses, ({ one }) => ({
+  project: one(projects, { fields: [projectExpenses.projectId], references: [projects.id] }),
+  creator: one(users,    { fields: [projectExpenses.createdBy],  references: [users.id] }),
 }))

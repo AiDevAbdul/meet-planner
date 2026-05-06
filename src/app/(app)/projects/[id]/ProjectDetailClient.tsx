@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Folder, ArrowLeft, Settings, Users, CheckSquare,
   FileText, Calendar, ChevronDown, MoreHorizontal,
   Plus, AlertCircle, Clock, CheckCircle2,
-  Edit2, Trash2, UserPlus, Sparkles, BookOpen,
+  Edit2, Trash2, UserPlus, Sparkles, BookOpen, DollarSign,
 } from 'lucide-react'
 import { Avatar } from '@/components/layout/Sidebar'
 
@@ -269,6 +269,76 @@ export function ProjectDetailClient({
   )
 }
 
+type BudgetData = {
+  budget:        number | null
+  spentCents:    number
+  timeMinutes:   number
+  expensesCount: number
+}
+
+function BudgetSection({ projectId, projectBudget }: { projectId: string; projectBudget: number | null }) {
+  const [data, setData] = useState<BudgetData | null>(null)
+
+  useEffect(() => {
+    fetch(`/api/projects/${projectId}/budget`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setData(d) })
+      .catch(() => {})
+  }, [projectId])
+
+  if (!data) return null
+
+  const budget    = data.budget ?? projectBudget
+  const spentDol  = data.spentCents / 100
+  const pct       = budget ? Math.min(Math.round((spentDol / budget) * 100), 100) : 0
+  const barColor  = pct > 85 ? 'var(--color-red)' : pct > 60 ? 'var(--color-orange)' : 'var(--color-green)'
+
+  return (
+    <div className="glass-card p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <DollarSign size={15} strokeWidth={1.5} style={{ color: 'var(--text-tertiary)' }} />
+        <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Budget</h2>
+      </div>
+
+      {!budget ? (
+        <p className="text-[13px]" style={{ color: 'var(--text-tertiary)' }}>No budget set</p>
+      ) : (
+        <>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[13px]" style={{ color: 'var(--text-secondary)' }}>
+              ${spentDol.toLocaleString()} spent
+            </span>
+            <span className="text-[13px] font-semibold" style={{ color: 'var(--text-primary)' }}>
+              ${budget.toLocaleString()} budget
+            </span>
+          </div>
+          <div className="h-2 rounded-full overflow-hidden mb-2" style={{ background: 'var(--border)' }}>
+            <div
+              style={{
+                height:     '100%',
+                width:      `${pct}%`,
+                background: barColor,
+                borderRadius: 9999,
+                transition:   'width 0.4s ease',
+              }}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-[12px]" style={{ color: 'var(--text-tertiary)' }}>
+              {pct}% used · {data.expensesCount} expense{data.expensesCount !== 1 ? 's' : ''}
+            </span>
+            {data.timeMinutes > 0 && (
+              <span className="text-[12px]" style={{ color: 'var(--text-tertiary)' }}>
+                {Math.round(data.timeMinutes / 60)}h logged
+              </span>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function OverviewTab({ project, taskStats, pct, members }: { project: Project; taskStats: { total: number; done: number; overdue: number }; pct: number; members: Member[] }) {
   return (
     <div className="grid grid-cols-3 gap-6">
@@ -307,6 +377,8 @@ function OverviewTab({ project, taskStats, pct, members }: { project: Project; t
             <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{project.description}</p>
           </div>
         )}
+
+        <BudgetSection projectId={project.id} projectBudget={project.budget} />
       </div>
 
       {/* Meta */}

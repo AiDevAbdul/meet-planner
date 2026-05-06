@@ -5,6 +5,7 @@ import {
   X, Trash2, ExternalLink, Calendar, User, Flag,
   CheckCircle, Clock, AlertCircle, Send, MessageCircle,
   Sparkles, Plus, Check, Loader2, GitBranch, Link2, Sliders, Target,
+  DollarSign, Play, Square,
 } from 'lucide-react'
 import { PriorityBadge, StatusBadge } from '@/components/ui/Badges'
 import { Avatar } from '@/components/layout/Sidebar'
@@ -479,6 +480,9 @@ export function TaskDetailPanel({ task, users, onClose, onUpdate, onDelete }: Pr
             {task.projectId && (
               <CustomFieldsSection taskId={task.id} projectId={task.projectId} />
             )}
+
+            {/* Time Tracking */}
+            <TimeTrackingSection taskId={task.id} taskTitle={task.title} />
 
             {/* Goal / KR links */}
             <GoalLinksSection taskId={task.id} />
@@ -1509,6 +1513,303 @@ function FieldRow({
         <span className="text-[12px] font-medium">{label}</span>
       </div>
       <div className="flex-1">{children}</div>
+    </div>
+  )
+}
+
+// ── TimeTrackingSection ────────────────────────────────────────────────────────
+
+type TimeEntry = {
+  id:       string
+  date:     string
+  minutes:  number
+  note:     string | null
+  billable: boolean
+}
+
+const TIMER_KEY = 'meetplanner_active_timer'
+
+function TimeTrackingSection({ taskId, taskTitle }: { taskId: string; taskTitle: string }) {
+  const [entries,   setEntries]   = useState<TimeEntry[]>([])
+  const [loading,   setLoading]   = useState(true)
+  const [showForm,  setShowForm]  = useState(false)
+  const [fDate,     setFDate]     = useState(() => new Date().toISOString().slice(0, 10))
+  const [fHours,    setFHours]    = useState('')
+  const [fNote,     setFNote]     = useState('')
+  const [fBillable, setFBillable] = useState(false)
+  const [saving,    setSaving]    = useState(false)
+  const [timerActive, setTimerActive] = useState(false)
+
+  const fetchEntries = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/time-entries`)
+      if (res.ok) setEntries(await res.json())
+    } finally {
+      setLoading(false)
+    }
+  }, [taskId])
+
+  useEffect(() => { fetchEntries() }, [fetchEntries])
+
+  // Check if timer is active for this task
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(TIMER_KEY)
+      if (raw) {
+        const t = JSON.parse(raw)
+        setTimerActive(t.taskId === taskId)
+      }
+    } catch {}
+  }, [taskId])
+
+  const totalMinutes = entries.reduce((s, e) => s + e.minutes, 0)
+  const totalHours   = totalMinutes > 0
+    ? `${Math.floor(totalMinutes / 60)}h${totalMinutes % 60 > 0 ? ` ${totalMinutes % 60}m` : ''}`
+    : '0h'
+
+  function startTimer() {
+    const timerData = { taskId, taskTitle, startedAt: new Date().toISOString() }
+    localStorage.setItem(TIMER_KEY, JSON.stringify(timerData))
+    setTimerActive(true)
+    // Dispatch a custom event so Topbar can react
+    window.dispatchEvent(new Event('meetplanner_timer_change'))
+  }
+
+  function stopTimer() {
+    try {
+      const raw = localStorage.getItem(TIMER_KEY)
+      if (!raw) return
+      const t = JSON.parse(raw)
+      if (t.taskId !== taskId) return
+      const elapsed = Math.round((Date.now() - new Date(t.startedAt).getTime()) / 60000)
+      if (elapsed > 0) {
+        fetch(`/api/tasks/${taskId}/time-entries`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({
+            date:     new Date().toISOString().slice(0, 10),
+            minutes:  elapsed,
+            note:     'Timer',
+            billable: false,
+          }),
+        }).then(r => { if (r.ok) fetchEntries() })
+      }
+    } catch {}
+    localStorage.removeItem(TIMER_KEY)
+    setTimerActive(false)
+    window.dispatchEvent(new Event('meetplanner_timer_change'))
+  }
+
+  async function addEntry() {
+    const hours = parseFloat(fHours)
+    if (!fDate || isNaN(hours) || hours <= 0 || saving) return
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/time-entries`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          date:     fDate,
+          minutes:  Math.round(hours * 60),
+          note:     fNote || null,
+          billable: fBillable,
+        }),
+      })
+      if (res.ok) {
+        const e = await res.json()
+        setEntries(prev => [...prev, e])
+        setShowForm(false)
+        setFHours('')
+        setFNote('')
+        setFBillable(false)
+        setFDate(new Date().toISOString().slice(0, 10))
+      }
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function deleteEntry(id: string) {
+    setEntries(prev => prev.filter(e => e.id !== id))
+    await fetch(`/api/time-entries/${id}`, { method: 'DELETE' })
+  }
+
+  return (
+    <div className="mb-5">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5">
+          <Clock size={13} strokeWidth={1.5} style={{ color: 'var(--text-tertiary)' }} />
+          <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-tertiary)' }}>
+            Time Logged
+          </span>
+          {totalMinutes > 0 && (
+            <span
+              className="text-[11px] font-semibold px-1.5 py-0.5 rounded-full"
+              style={{ background: 'rgba(0,122,255,0.08)', color: 'var(--color-blue)' }}
+            >
+              {totalHours}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          {timerActive ? (
+            <button
+              onClick={stopTimer}
+              className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-[6px] transition-all hover:opacity-90"
+              style={{ background: 'rgba(255,59,48,0.08)', color: 'var(--color-red)', border: '1px solid rgba(255,59,48,0.2)' }}
+              aria-label="Stop timer"
+            >
+              <Square size={10} strokeWidth={2} />
+              Stop
+            </button>
+          ) : (
+            <button
+              onClick={startTimer}
+              className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-[6px] transition-all hover:opacity-90"
+              style={{ background: 'rgba(52,199,89,0.08)', color: 'var(--color-green)', border: '1px solid rgba(52,199,89,0.2)' }}
+              aria-label="Start timer"
+            >
+              <Play size={10} strokeWidth={2} />
+              Timer
+            </button>
+          )}
+          <button
+            onClick={() => setShowForm(v => !v)}
+            className="flex items-center gap-1 text-[11px] font-medium px-2 py-1 rounded-[6px] transition-all hover:opacity-90"
+            style={{ background: 'rgba(0,122,255,0.08)', color: 'var(--color-blue)', border: '1px solid rgba(0,122,255,0.15)' }}
+            aria-label="Log time manually"
+          >
+            <Plus size={10} strokeWidth={2.5} />
+            Log
+          </button>
+        </div>
+      </div>
+
+      {/* Inline form */}
+      {showForm && (
+        <div
+          className="mb-3 rounded-[10px] p-3"
+          style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}
+        >
+          <div className="flex gap-2 mb-2">
+            <div className="flex-1">
+              <label className="text-[10px] mb-0.5 block" style={{ color: 'var(--text-tertiary)' }}>Date</label>
+              <input
+                type="date"
+                value={fDate}
+                onChange={e => setFDate(e.target.value)}
+                className="w-full text-[12px] outline-none rounded-[7px] px-2 py-1.5"
+                style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+              />
+            </div>
+            <div style={{ width: 80 }}>
+              <label className="text-[10px] mb-0.5 block" style={{ color: 'var(--text-tertiary)' }}>Hours</label>
+              <input
+                type="number"
+                step="0.25"
+                min="0.25"
+                value={fHours}
+                onChange={e => setFHours(e.target.value)}
+                placeholder="1.5"
+                className="w-full text-[12px] outline-none rounded-[7px] px-2 py-1.5"
+                style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+              />
+            </div>
+          </div>
+          <input
+            type="text"
+            value={fNote}
+            onChange={e => setFNote(e.target.value)}
+            placeholder="Note (optional)"
+            className="w-full text-[12px] outline-none rounded-[7px] px-2 py-1.5 mb-2"
+            style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+          />
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <button
+                type="button"
+                onClick={() => setFBillable(v => !v)}
+                className="w-3.5 h-3.5 rounded border flex items-center justify-center transition-all"
+                style={{
+                  background:  fBillable ? 'var(--color-blue)' : 'transparent',
+                  borderColor: fBillable ? 'var(--color-blue)' : 'var(--border)',
+                }}
+              >
+                {fBillable && <Check size={8} strokeWidth={3} style={{ color: '#fff' }} />}
+              </button>
+              <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>Billable</span>
+            </label>
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => setShowForm(false)}
+                className="text-[12px] px-2 py-1 rounded-[6px]"
+                style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={addEntry}
+                disabled={saving || !fDate || !fHours}
+                className="flex items-center gap-1 text-[12px] px-2 py-1 rounded-[6px] disabled:opacity-50"
+                style={{ background: 'var(--color-blue)', color: '#fff' }}
+              >
+                {saving && <Loader2 size={10} className="animate-spin" />}
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Entries */}
+      {loading ? (
+        <div className="flex items-center gap-1.5 py-1">
+          <Loader2 size={11} strokeWidth={2} className="animate-spin" style={{ color: 'var(--text-tertiary)' }} />
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          {entries.map(e => <TimeEntryRow key={e.id} entry={e} onDelete={() => deleteEntry(e.id)} />)}
+          {entries.length === 0 && !showForm && (
+            <p className="text-[12px]" style={{ color: 'var(--text-tertiary)' }}>No time logged yet.</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TimeEntryRow({ entry, onDelete }: { entry: TimeEntry; onDelete: () => void }) {
+  const [hovered, setHovered] = useState(false)
+  const h = Math.floor(entry.minutes / 60)
+  const m = entry.minutes % 60
+  const label = m === 0 ? `${h}h` : `${h}h ${m}m`
+
+  return (
+    <div
+      className="flex items-center gap-2"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <span className="text-[11px] flex-shrink-0" style={{ color: 'var(--text-tertiary)', width: 72 }}>
+        {new Date(entry.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+      </span>
+      <span className="flex-1 text-[12px] truncate" style={{ color: 'var(--text-secondary)' }}>
+        {entry.note || '—'}
+      </span>
+      {entry.billable && (
+        <DollarSign size={10} strokeWidth={2} style={{ color: 'var(--color-green)', flexShrink: 0 }} />
+      )}
+      <span className="text-[12px] font-semibold flex-shrink-0" style={{ color: 'var(--text-primary)' }}>
+        {label}
+      </span>
+      <button
+        onClick={onDelete}
+        style={{ opacity: hovered ? 1 : 0, transition: 'opacity 150ms', color: 'var(--text-tertiary)', flexShrink: 0, padding: 2 }}
+        aria-label="Delete time entry"
+      >
+        <X size={11} strokeWidth={2} />
+      </button>
     </div>
   )
 }
