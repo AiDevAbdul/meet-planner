@@ -7,10 +7,11 @@ import {
   Folder, ArrowLeft, Settings, Users, CheckSquare,
   FileText, Calendar, ChevronDown, MoreHorizontal,
   Plus, AlertCircle, Clock, CheckCircle2,
-  Edit2, Trash2, UserPlus, Sparkles, BookOpen, DollarSign, Zap,
+  Edit2, Trash2, UserPlus, Sparkles, BookOpen, DollarSign, Zap, ClipboardList,
 } from 'lucide-react'
 import { Avatar } from '@/components/layout/Sidebar'
 import { AutomationsTab } from './AutomationsTab'
+import { FormsTab } from './FormsTab'
 
 const STATUS_OPTIONS = [
   { value: 'planning',  label: 'Planning',  color: 'var(--color-blue)' },
@@ -75,7 +76,7 @@ type Project = {
   ownerImage: string | null
 }
 
-type Tab = 'overview' | 'tasks' | 'meetings' | 'members' | 'documents' | 'automations' | 'settings'
+type Tab = 'overview' | 'tasks' | 'meetings' | 'members' | 'documents' | 'automations' | 'forms' | 'settings'
 
 export function ProjectDetailClient({
   project: initialProject,
@@ -121,8 +122,9 @@ export function ProjectDetailClient({
     { id: 'tasks',      label: 'Tasks',      icon: CheckSquare, count: taskStats.total },
     { id: 'meetings',   label: 'Meetings',   icon: FileText,    count: meetings.length },
     { id: 'members',    label: 'Members',    icon: Users,       count: members.length },
-    { id: 'documents',   label: 'Documents',    icon: BookOpen,  href: `/projects/${project.id}/documents` },
+    { id: 'documents',   label: 'Documents',    icon: BookOpen,       href: `/projects/${project.id}/documents` },
     { id: 'automations', label: 'Automations',  icon: Zap },
+    { id: 'forms',       label: 'Forms',        icon: ClipboardList },
     { id: 'settings',    label: 'Settings',     icon: Settings },
   ]
 
@@ -265,6 +267,9 @@ export function ProjectDetailClient({
         )}
         {activeTab === 'automations' && (
           <AutomationsTab projectId={project.id} />
+        )}
+        {activeTab === 'forms' && (
+          <FormsTab projectId={project.id} />
         )}
         {activeTab === 'settings' && (
           <SettingsTab project={project} onUpdate={setProject} />

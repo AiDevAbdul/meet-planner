@@ -26,7 +26,11 @@ export const notifTypeEnum = pgEnum('notif_type', [
   'meeting_request_rejected', 'meeting_reminder',
   'minutes_ready_for_review', 'milestone_due', 'goal_checkin_due',
   'budget_alert_80', 'budget_alert_100',
-  'automation_triggered',
+  'automation_triggered', 'intake_form_submitted',
+])
+
+export const intakeSubmissionStatusEnum = pgEnum('intake_submission_status', [
+  'new', 'reviewed', 'triaged',
 ])
 
 export const milestoneStatusEnum = pgEnum('milestone_status', ['pending', 'in_progress', 'completed'])
@@ -569,4 +573,45 @@ export const automations = pgTable('automations', {
 export const automationsRelations = relations(automations, ({ one }) => ({
   project: one(projects, { fields: [automations.projectId], references: [projects.id] }),
   creator: one(users,    { fields: [automations.createdBy], references: [users.id] }),
+}))
+
+// ─── Intake Forms ─────────────────────────────────────────────────────────────
+
+export const intakeForms = pgTable('intake_forms', {
+  id:              uuid('id').primaryKey().defaultRandom(),
+  projectId:       uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  name:            text('name').notNull(),
+  slug:            text('slug').notNull().unique(),
+  description:     text('description'),
+  fields:          jsonb('fields').default([]).notNull(),
+  active:          boolean('active').default(true).notNull(),
+  submissionCount: integer('submission_count').default(0).notNull(),
+  createdBy:       uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt:       timestamp('created_at').defaultNow().notNull(),
+  updatedAt:       timestamp('updated_at').defaultNow().notNull(),
+})
+
+export const intakeFormsRelations = relations(intakeForms, ({ one, many }) => ({
+  project:     one(projects, { fields: [intakeForms.projectId], references: [projects.id] }),
+  creator:     one(users,    { fields: [intakeForms.createdBy], references: [users.id] }),
+  submissions: many(intakeSubmissions),
+}))
+
+export const intakeSubmissions = pgTable('intake_submissions', {
+  id:             uuid('id').primaryKey().defaultRandom(),
+  formId:         uuid('form_id').notNull().references(() => intakeForms.id, { onDelete: 'cascade' }),
+  projectId:      uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  data:           jsonb('data').default({}).notNull(),
+  status:         intakeSubmissionStatusEnum('status').default('new').notNull(),
+  taskId:         uuid('task_id').references(() => tasks.id, { onDelete: 'set null' }),
+  submitterEmail: text('submitter_email'),
+  submitterName:  text('submitter_name'),
+  createdAt:      timestamp('created_at').defaultNow().notNull(),
+  updatedAt:      timestamp('updated_at').defaultNow().notNull(),
+})
+
+export const intakeSubmissionsRelations = relations(intakeSubmissions, ({ one }) => ({
+  form:    one(intakeForms, { fields: [intakeSubmissions.formId],    references: [intakeForms.id] }),
+  project: one(projects,    { fields: [intakeSubmissions.projectId], references: [projects.id] }),
+  task:    one(tasks,       { fields: [intakeSubmissions.taskId],    references: [tasks.id] }),
 }))
