@@ -8,11 +8,12 @@ import {
   FileText, Calendar, ChevronDown, MoreHorizontal,
   Plus, AlertCircle, Clock, CheckCircle2,
   Edit2, Trash2, UserPlus, Sparkles, BookOpen, DollarSign, Zap, ClipboardList,
-  ShieldAlert, RefreshCw, Bot,
+  ShieldAlert, RefreshCw, Bot, Globe,
 } from 'lucide-react'
 import { Avatar } from '@/components/layout/Sidebar'
 import { AutomationsTab } from './AutomationsTab'
 import { FormsTab } from './FormsTab'
+import { PortalTab } from './PortalTab'
 
 const STATUS_OPTIONS = [
   { value: 'planning',  label: 'Planning',  color: 'var(--color-blue)' },
@@ -86,7 +87,7 @@ type RiskSnapshot = {
   createdAt: string
 }
 
-type Tab = 'overview' | 'tasks' | 'meetings' | 'members' | 'documents' | 'automations' | 'forms' | 'settings'
+type Tab = 'overview' | 'tasks' | 'meetings' | 'members' | 'documents' | 'automations' | 'forms' | 'portal' | 'settings'
 
 export function ProjectDetailClient({
   project: initialProject,
@@ -135,6 +136,7 @@ export function ProjectDetailClient({
     { id: 'documents',   label: 'Documents',    icon: BookOpen,       href: `/projects/${project.id}/documents` },
     { id: 'automations', label: 'Automations',  icon: Zap },
     { id: 'forms',       label: 'Forms',        icon: ClipboardList },
+    { id: 'portal',      label: 'Portal',       icon: Globe },
     { id: 'settings',    label: 'Settings',     icon: Settings },
   ]
 
@@ -280,6 +282,9 @@ export function ProjectDetailClient({
         )}
         {activeTab === 'forms' && (
           <FormsTab projectId={project.id} />
+        )}
+        {activeTab === 'portal' && (
+          <PortalTab projectId={project.id} />
         )}
         {activeTab === 'settings' && (
           <SettingsTab project={project} onUpdate={setProject} />

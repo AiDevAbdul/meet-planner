@@ -635,3 +635,57 @@ export const projectRiskSnapshots = pgTable('project_risk_snapshots', {
 export const projectRiskSnapshotsRelations = relations(projectRiskSnapshots, ({ one }) => ({
   project: one(projects, { fields: [projectRiskSnapshots.projectId], references: [projects.id] }),
 }))
+
+// ─── Client / Stakeholder Portal ─────────────────────────────────────────────
+
+export const portalDocApprovalStatusEnum = pgEnum('portal_doc_approval_status', [
+  'pending', 'approved', 'changes_requested',
+])
+
+export const clientPortals = pgTable('client_portals', {
+  id:           uuid('id').primaryKey().defaultRandom(),
+  projectId:    uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  name:         text('name').notNull(),
+  slug:         text('slug').notNull().unique(),
+  passwordHash: text('password_hash'),
+  logoUrl:      text('logo_url'),
+  primaryColor: text('primary_color').default('#007AFF').notNull(),
+  active:       boolean('active').default(true).notNull(),
+  viewCount:    integer('view_count').default(0).notNull(),
+  createdAt:    timestamp('created_at').defaultNow().notNull(),
+  updatedAt:    timestamp('updated_at').defaultNow().notNull(),
+})
+
+export const portalUpdates = pgTable('portal_updates', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  portalId:  uuid('portal_id').notNull().references(() => clientPortals.id, { onDelete: 'cascade' }),
+  content:   text('content').notNull(),
+  createdBy: uuid('created_by').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
+export const portalDocApprovals = pgTable('portal_doc_approvals', {
+  id:          uuid('id').primaryKey().defaultRandom(),
+  portalId:    uuid('portal_id').notNull().references(() => clientPortals.id, { onDelete: 'cascade' }),
+  documentId:  uuid('document_id').notNull().references(() => documents.id, { onDelete: 'cascade' }),
+  status:      portalDocApprovalStatusEnum('status').default('pending').notNull(),
+  note:        text('note'),
+  respondedAt: timestamp('responded_at'),
+  createdAt:   timestamp('created_at').defaultNow().notNull(),
+})
+
+export const clientPortalsRelations = relations(clientPortals, ({ one, many }) => ({
+  project: one(projects, { fields: [clientPortals.projectId], references: [projects.id] }),
+  updates: many(portalUpdates),
+  docApprovals: many(portalDocApprovals),
+}))
+
+export const portalUpdatesRelations = relations(portalUpdates, ({ one }) => ({
+  portal:    one(clientPortals, { fields: [portalUpdates.portalId], references: [clientPortals.id] }),
+  createdBy: one(users, { fields: [portalUpdates.createdBy], references: [users.id] }),
+}))
+
+export const portalDocApprovalsRelations = relations(portalDocApprovals, ({ one }) => ({
+  portal:   one(clientPortals, { fields: [portalDocApprovals.portalId], references: [clientPortals.id] }),
+  document: one(documents, { fields: [portalDocApprovals.documentId], references: [documents.id] }),
+}))

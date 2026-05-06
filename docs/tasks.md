@@ -281,7 +281,7 @@
 ## Phase 6 — Growth & External
 
 ### Task 15 — Phase 6A: Client / Stakeholder Portal
-**Status**: 🔲 TODO
+**Status**: ✅ DONE
 
 **Depends on**: Task 5, 8 (projects + documents)
 
