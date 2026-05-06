@@ -148,8 +148,11 @@ export const tasks = pgTable('tasks', {
   departmentId:   uuid('department_id').references(() => departments.id),
   projectId:      uuid('project_id').references(() => projects.id),
   parentTaskId:   uuid('parent_task_id').references((): any => tasks.id),
+  sprintId:       uuid('sprint_id').references((): any => sprints.id, { onDelete: 'set null' }),
   recurrenceRule: text('recurrence_rule'),
   dueDate:        date('due_date'),
+  startedAt:      timestamp('started_at', { withTimezone: true }),
+  completedAt:    timestamp('completed_at', { withTimezone: true }),
   position:       integer('position').default(0),
   createdAt:      timestamp('created_at').defaultNow().notNull(),
   updatedAt:      timestamp('updated_at').defaultNow().notNull(),
@@ -236,6 +239,7 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
   meeting:     one(meetings,    { fields: [tasks.meetingId],    references: [meetings.id] }),
   department:  one(departments, { fields: [tasks.departmentId], references: [departments.id] }),
   project:     one(projects,    { fields: [tasks.projectId],    references: [projects.id] }),
+  sprint:      one(sprints,     { fields: [tasks.sprintId],     references: [sprints.id] }),
   parent:      one(tasks,       { fields: [tasks.parentTaskId], references: [tasks.id],       relationName: 'parent_child' }),
   subtasks:    many(tasks,      { relationName: 'parent_child' }),
   milestones:  many(milestones),
@@ -673,6 +677,46 @@ export const portalDocApprovals = pgTable('portal_doc_approvals', {
   respondedAt: timestamp('responded_at'),
   createdAt:   timestamp('created_at').defaultNow().notNull(),
 })
+
+// ─── Sprints ─────────────────────────────────────────────────────────────────
+
+export const sprintStatusEnum = pgEnum('sprint_status', ['planning', 'active', 'completed'])
+
+export const sprints = pgTable('sprints', {
+  id:           uuid('id').primaryKey().defaultRandom(),
+  projectId:    uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  name:         text('name').notNull(),
+  goal:         text('goal'),
+  startDate:    date('start_date').notNull(),
+  endDate:      date('end_date').notNull(),
+  status:       sprintStatusEnum('status').default('planning').notNull(),
+  retroSummary: text('retro_summary'),
+  createdBy:    uuid('created_by').references(() => users.id),
+  createdAt:    timestamp('created_at').defaultNow().notNull(),
+  updatedAt:    timestamp('updated_at').defaultNow().notNull(),
+})
+
+export const sprintsRelations = relations(sprints, ({ one, many }) => ({
+  project: one(projects, { fields: [sprints.projectId], references: [projects.id] }),
+  creator: one(users,    { fields: [sprints.createdBy], references: [users.id] }),
+  tasks:   many(tasks),
+}))
+
+// ─── Saved Reports ────────────────────────────────────────────────────────────
+
+export const savedReports = pgTable('saved_reports', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  userId:    uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name:      text('name').notNull(),
+  config:    jsonb('config').$type<Record<string, unknown>>().notNull(),
+  pinned:    boolean('pinned').default(false).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+})
+
+export const savedReportsRelations = relations(savedReports, ({ one }) => ({
+  user: one(users, { fields: [savedReports.userId], references: [users.id] }),
+}))
 
 // ─── GitHub Integration ───────────────────────────────────────────────────────
 
