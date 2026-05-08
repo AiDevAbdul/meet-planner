@@ -4,8 +4,7 @@ import { db } from '@/lib/db'
 import { tasks, meetings, users } from '@/lib/db/schema'
 import { desc, eq, ne } from 'drizzle-orm'
 import Anthropic from '@anthropic-ai/sdk'
-
-const client = new Anthropic()
+import { GoogleGenerativeAI } from '@google/generative-ai'
 
 export async function POST(req: NextRequest) {
   const session = await auth()
@@ -56,24 +55,27 @@ ${recentMeetings.map(m =>
 ${teamMembers.map(u => `- ${u.name} (${u.role})`).join('\n')}
 `
 
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 512,
-    system: [
-      {
-        type: 'text',
-        text: `You are a helpful assistant for MeetPlanner, an internal meeting and project management tool. Answer questions about tasks, meetings, and team members using the provided context. Be concise (2-4 sentences max). If you cannot answer from the context, say so briefly.`,
-        cache_control: { type: 'ephemeral' },
-      },
-    ],
-    messages: [
-      {
-        role: 'user',
-        content: `Context:\n${context}\n\nQuestion: ${question.trim()}`,
-      },
-    ],
-  })
+  const systemPrompt = `You are a helpful assistant for MeetPlanner, an internal meeting and project management tool. Answer questions about tasks, meetings, and team members using the provided context. Be concise (2-4 sentences max). If you cannot answer from the context, say so briefly.`
+  const userMessage = `Context:\n${context}\n\nQuestion: ${question.trim()}`
 
-  const text = response.content.find(b => b.type === 'text')
-  return NextResponse.json({ answer: text?.type === 'text' ? text.text : 'No answer available.' })
+  if (process.env.ANTHROPIC_API_KEY) {
+    const client = new Anthropic()
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 512,
+      system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
+      messages: [{ role: 'user', content: userMessage }],
+    })
+    const text = response.content.find(b => b.type === 'text')
+    return NextResponse.json({ answer: text?.type === 'text' ? text.text : 'No answer available.' })
+  }
+
+  if (process.env.GEMINI_API_KEY) {
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash', systemInstruction: systemPrompt })
+    const result = await model.generateContent(userMessage)
+    return NextResponse.json({ answer: result.response.text() })
+  }
+
+  return NextResponse.json({ error: 'No AI provider configured' }, { status: 503 })
 }
