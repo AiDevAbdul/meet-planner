@@ -45,6 +45,7 @@ export function ChannelView({ channel, currentUserId }: Props) {
     loadMore,
     appendMessage,
     updateMessage,
+    removeMessage,
   } = useRealtimeMessages(channel.id)
 
   const [creatingTask, setCreatingTask] = useState<Set<string>>(new Set())
@@ -167,12 +168,9 @@ export function ChannelView({ channel, currentUserId }: Props) {
   }
 
   async function handleDelete(messageId: string) {
+    removeMessage(messageId)
     try {
-      const res = await fetch(`/api/messages/${messageId}`, { method: 'DELETE' })
-      if (res.ok) {
-        // Optimistically remove from local state
-        // The realtime subscription will fire DELETE event too
-      }
+      await fetch(`/api/messages/${messageId}`, { method: 'DELETE' })
     } catch {}
   }
 

@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { messages, channelMembers, users } from '@/lib/db/schema'
-import { eq, and, lt, desc } from 'drizzle-orm'
+import { eq, and, lt, gt, desc, asc } from 'drizzle-orm'
 
 const PAGE_SIZE = 40
 
 // GET /api/channels/[id]/messages
-// Cursor-based pagination, newest first.
-// ?cursor=<message-createdAt ISO string> for older pages
+// ?cursor=<ISO>  — pagination (messages older than cursor, newest-first)
+// ?after=<ISO>   — poll for new messages (messages newer than timestamp, oldest-first)
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -32,11 +32,20 @@ export async function GET(
   }
 
   const cursor = req.nextUrl.searchParams.get('cursor')
+  const after  = req.nextUrl.searchParams.get('after')
 
   const conditions = [eq(messages.channelId, channelId)]
   if (cursor) {
+    // Pagination: older messages
     conditions.push(lt(messages.createdAt, new Date(cursor)))
+  } else if (after) {
+    // Polling: newer messages only
+    conditions.push(gt(messages.createdAt, new Date(after)))
   }
+
+  // Polling returns ASC (oldest-first) so they append correctly on the client.
+  // Pagination returns DESC (newest-first) and is reversed on the client.
+  const order = after ? asc(messages.createdAt) : desc(messages.createdAt)
 
   const rows = await db
     .select({
@@ -55,15 +64,17 @@ export async function GET(
     .from(messages)
     .innerJoin(users, eq(messages.userId, users.id))
     .where(and(...conditions))
-    .orderBy(desc(messages.createdAt))
+    .orderBy(order)
     .limit(PAGE_SIZE + 1)
 
-  const hasMore = rows.length > PAGE_SIZE
-  const items = hasMore ? rows.slice(0, PAGE_SIZE) : rows
+  // Polling responses don't use pagination metadata
+  if (after) {
+    return NextResponse.json({ items: rows })
+  }
 
-  const nextCursor = hasMore
-    ? items[items.length - 1].createdAt.toISOString()
-    : null
+  const hasMore = rows.length > PAGE_SIZE
+  const items   = hasMore ? rows.slice(0, PAGE_SIZE) : rows
+  const nextCursor = hasMore ? items[items.length - 1].createdAt.toISOString() : null
 
   return NextResponse.json({ items, nextCursor, hasMore })
 }
