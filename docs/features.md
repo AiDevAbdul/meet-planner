@@ -240,7 +240,7 @@ MeetPlanner
 - [x] Triage Queue (admin/manager)
 - [x] Task Board (kanban, drag-and-drop)
 - [x] Task detail slide-over with comments
-- [x] Messaging (channels + DMs, Supabase Realtime)
+- [x] Messaging (channels + DMs, 3-second polling real-time)
 - [x] People & Teams with profiles
 - [x] In-app notifications center
 
@@ -251,6 +251,7 @@ MeetPlanner
 - [x] Analytics dashboard
 - [x] Global search + AI command palette
 - [x] Admin team member creation in Settings
+- [x] Floating chat widget (WhatsApp-style, bottom-right, accessible from all pages)
 
 ### Planned
 - [ ] Google Meet transcript ingestion

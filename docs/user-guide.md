@@ -312,7 +312,25 @@ Standups can be enabled per project. When enabled, team members receive a daily 
 
 **Available to:** All roles
 
-### 7.1 Channels Sidebar
+Messaging is available in two ways:
+- **Floating chat widget** — a blue button fixed to the bottom-right corner of every page. Click it to open a compact WhatsApp-style panel without leaving your current view.
+- **Full-screen page** — navigate to `/messaging` (or click the expand icon in the widget) for the full channel experience.
+
+New messages from other team members appear automatically within ~3 seconds — no page refresh needed.
+
+### 7.1 Floating Chat Widget
+
+The chat widget is accessible from anywhere in the app:
+
+| Element | Description |
+|---|---|
+| **Blue bubble button** | Opens / closes the chat panel (bottom-right corner) |
+| **Red dot badge** | Indicates new messages received while the panel was closed |
+| **Channel list** | Tap any channel to open its message thread |
+| **Back arrow** | Returns to the channel list from a thread |
+| **Expand icon** | Opens the full `/messaging` page |
+
+### 7.2 Channels Sidebar (Full-Screen)
 
 The left panel in `/messaging` lists:
 - **Public channels** — visible to all team members
@@ -320,24 +338,22 @@ The left panel in `/messaging` lists:
 - **Department channels** — auto-scoped to your department
 - **Direct Messages (DMs)** — one-on-one conversations
 
-The unread count badge next to each channel shows messages you haven't seen.
+### 7.3 Sending Messages
 
-### 7.2 Sending Messages
-
-1. Click a channel or DM.
+1. Click a channel or DM (in the widget or the full-screen page).
 2. Type in the message input at the bottom.
 3. Press **Enter** to send (or **Shift+Enter** for a new line).
 
-### 7.3 Creating a Channel
+### 7.4 Creating a Channel
 
-1. Click **+** next to "Channels".
+1. Click **+** next to "Channels" in the full-screen `/messaging` view.
 2. Enter a channel name, choose public or private, select department scope.
 3. Add initial members.
 4. Click **Create**.
 
-### 7.4 Message Actions
+### 7.5 Message Actions
 
-Hover over any message to reveal the action bar:
+Hover over any message (full-screen view) to reveal the action bar:
 
 | Action | Description |
 |---|---|
@@ -348,14 +364,14 @@ Hover over any message to reveal the action bar:
 | **Copy** | Copies message text to clipboard |
 | **Delete** | Removes your own message only |
 
-### 7.5 Chat → Task Conversion
+### 7.6 Chat → Task Conversion
 
 When someone posts an action item in chat (e.g., "John can you update the proposal by Friday"):
 1. Hover the message → click **Create Task**.
 2. The AI extracts: title, suggested assignee, and due date.
 3. The task is created in Triage status for a Manager/Admin to approve.
 
-### 7.6 Infinite Scroll History
+### 7.7 Infinite Scroll History
 
 Scroll up in any channel to load older messages automatically. Date separators mark the start of each day.
 

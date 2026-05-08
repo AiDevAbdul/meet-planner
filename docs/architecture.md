@@ -8,7 +8,7 @@
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────────┐  │
 │  │Dashboard │  │Task Board│  │Messaging │  │Analytics   │  │
 │  │Meetings  │  │Kanban    │  │Channels  │  │Search      │  │
-│  │Triage    │  │Detail    │  │DMs       │  │Settings    │  │
+│  │Triage    │  │Detail    │  │DMs+Float │  │Settings    │  │
 │  └──────────┘  └──────────┘  └──────────┘  └────────────┘  │
 │                                                              │
 │  ┌──────────────────────────────────────────────────────┐   │
@@ -17,18 +17,23 @@
 │  │  /api/search  /api/ai/chat  /api/notifications        │   │
 │  └──────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
-          │              │               │
-   ┌──────▼──┐    ┌──────▼──┐    ┌──────▼──────┐
-   │  Claude  │    │  Neon   │    │  Supabase   │
-   │  API     │    │Postgres │    │  Realtime   │
-   │ (AI)     │    │  (DB)   │    │ (Messages)  │
-   └──────────┘    └─────────┘    └─────────────┘
+          │              │
+   ┌──────▼──┐    ┌──────▼──┐
+   │  Claude  │    │  Neon   │
+   │  API     │    │Postgres │
+   │ (AI)     │    │  (DB)   │
+   └──────────┘    └─────────┘
           │
    ┌──────▼──────────────────┐
    │  Gmail API (push watch) │
    │  Gemini API (fallback)  │
    └─────────────────────────┘
 ```
+
+> **Messaging real-time**: The app uses **3-second client-side polling** (`?after=<timestamp>`)
+> instead of Supabase Realtime. Polling pauses automatically when the browser tab is hidden
+> and resumes on focus. Supabase credentials are still configured but only needed if Realtime
+> is explicitly re-enabled in the Supabase dashboard.
 
 ---
 
@@ -68,7 +73,9 @@ Task status → 'todo' → notify assignees
 Team member sends message in channel
          │
          ▼
-Message stored in DB + broadcast via Supabase Realtime
+Message stored in Neon Postgres
+         │
+         ▼  (other clients receive it within 3 seconds via polling)
          │
          ▼ (user clicks "Create Task" on message hover toolbar)
 POST /api/messages/:id/create-task
@@ -225,8 +232,9 @@ created_at TIMESTAMPTZ DEFAULT now()
 |--------|-------|-------------|
 | GET | `/api/channels` | List channels user belongs to |
 | POST | `/api/channels` | Create channel |
-| GET | `/api/channels/:id/messages` | Paginated message history (cursor-based) |
+| GET | `/api/channels/:id/messages` | Paginated history (`?cursor=` for older pages; `?after=` for polling new messages) |
 | POST | `/api/channels/:id/messages` | Send message |
+| GET | `/api/messages/:id` | Fetch a single message with user info |
 | DELETE | `/api/messages/:id` | Delete own message |
 | PATCH | `/api/messages/:id/flag` | Flag message as idea |
 | POST | `/api/messages/:id/create-task` | AI-extract task from message, create at triage |
@@ -330,7 +338,7 @@ GEMINI_API_KEY=                    # fallback for all AI routes
 # Database
 DATABASE_URL=                      # Neon Postgres connection string
 
-# Real-time messaging
+# Supabase (credentials kept for optional Realtime; messaging uses polling by default)
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
