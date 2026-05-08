@@ -1,0 +1,291 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* Apple-system blue palette */
+:root {
+  --ifm-color-primary: #007AFF;
+  --ifm-color-primary-dark: #0066D6;
+  --ifm-color-primary-darker: #005EC4;
+  --ifm-color-primary-darkest: #004DA3;
+  --ifm-color-primary-light: #1A88FF;
+  --ifm-color-primary-lighter: #3394FF;
+  --ifm-color-primary-lightest: #66B0FF;
+
+  --ifm-font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --ifm-heading-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --ifm-font-size-base: 15px;
+  --ifm-line-height-base: 1.65;
+
+  --ifm-navbar-height: 60px;
+  --ifm-navbar-background-color: rgba(255, 255, 255, 0.85);
+  --ifm-navbar-shadow: 0 1px 0 0 rgba(0, 0, 0, 0.08);
+
+  --ifm-code-font-size: 13px;
+  --ifm-global-radius: 10px;
+  --ifm-card-border-radius: 12px;
+
+  --ifm-background-color: #ffffff;
+  --ifm-background-surface-color: #f5f5f7;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 122, 255, 0.06);
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #0A84FF;
+  --ifm-color-primary-dark: #0074e0;
+  --ifm-color-primary-darker: #006acc;
+  --ifm-color-primary-darkest: #0054a3;
+  --ifm-color-primary-light: #2492ff;
+  --ifm-color-primary-lighter: #3d9fff;
+  --ifm-color-primary-lightest: #70baff;
+
+  --ifm-background-color: #1c1c1e;
+  --ifm-background-surface-color: #2c2c2e;
+  --ifm-navbar-background-color: rgba(28, 28, 30, 0.85);
+  --docusaurus-highlighted-code-line-bg: rgba(10, 132, 255, 0.12);
+}
+
+/* Frosted glass navbar */
+.navbar {
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+h1 { font-size: 2rem; }
+h2 { font-size: 1.4rem; margin-top: 2.5rem; }
+h3 { font-size: 1.15rem; margin-top: 2rem; }
+
+/* Sidebar */
+.theme-doc-sidebar-container {
+  border-right: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.menu__link {
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 8px;
+}
+
+.menu__link--active {
+  font-weight: 600;
+}
+
+/* Tables */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 14px;
+}
+
+th {
+  background: var(--ifm-background-surface-color);
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ifm-color-emphasis-600);
+}
+
+td, th {
+  padding: 10px 14px;
+  border: 1px solid var(--ifm-color-emphasis-200);
+}
+
+tr:nth-child(even) td {
+  background: var(--ifm-background-surface-color);
+}
+
+/* Code blocks */
+.prism-code {
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+/* Admonitions */
+.admonition {
+  border-radius: 10px;
+  border-left-width: 4px;
+}
+
+/* Breadcrumbs */
+.breadcrumbs__item--active .breadcrumbs__link {
+  font-weight: 600;
+}
+
+/* Pagination */
+.pagination-nav__link {
+  border-radius: 10px;
+  border: 1px solid var(--ifm-color-emphasis-200);
+}
+
+/* Hero section on landing page */
+.hero-section {
+  padding: 80px 20px;
+  text-align: center;
+  background: linear-gradient(180deg, #f0f7ff 0%, #ffffff 100%);
+}
+
+[data-theme='dark'] .hero-section {
+  background: linear-gradient(180deg, #1a2640 0%, #1c1c1e 100%);
+}
+
+.hero-title {
+  font-size: 3rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--ifm-font-color-base);
+  margin-bottom: 1rem;
+}
+
+.hero-subtitle {
+  font-size: 1.2rem;
+  color: var(--ifm-color-emphasis-600);
+  max-width: 560px;
+  margin: 0 auto 2.5rem;
+  line-height: 1.6;
+}
+
+.hero-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.button--primary-custom {
+  background: #007AFF;
+  color: white;
+  border: none;
+  padding: 12px 28px;
+  border-radius: 980px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s ease, transform 0.15s ease;
+  display: inline-block;
+}
+
+.button--primary-custom:hover {
+  background: #0066D6;
+  color: white;
+  text-decoration: none;
+  transform: translateY(-1px);
+}
+
+.button--secondary-custom {
+  background: transparent;
+  color: #007AFF;
+  border: 1.5px solid #007AFF;
+  padding: 11px 28px;
+  border-radius: 980px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s ease;
+  display: inline-block;
+}
+
+.button--secondary-custom:hover {
+  background: rgba(0, 122, 255, 0.06);
+  color: #007AFF;
+  text-decoration: none;
+}
+
+/* Role cards on landing page */
+.role-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+  padding: 48px 20px;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.role-card {
+  background: var(--ifm-background-surface-color);
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: 16px;
+  padding: 28px 24px;
+  text-align: left;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.role-card:hover {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+  text-decoration: none;
+  color: inherit;
+}
+
+.role-card-icon {
+  font-size: 32px;
+  margin-bottom: 14px;
+  display: block;
+}
+
+.role-card-title {
+  font-size: 17px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--ifm-font-color-base);
+}
+
+.role-card-desc {
+  font-size: 14px;
+  color: var(--ifm-color-emphasis-600);
+  line-height: 1.5;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  padding: 0 20px 64px;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.feature-item {
+  padding: 20px;
+  background: var(--ifm-background-surface-color);
+  border-radius: 12px;
+  border: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.feature-item-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.feature-item-desc {
+  font-size: 13px;
+  color: var(--ifm-color-emphasis-600);
+  line-height: 1.5;
+}
+
+.section-header {
+  text-align: center;
+  padding: 48px 20px 24px;
+}
+
+.section-header h2 {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 8px;
+}
+
+.section-header p {
+  font-size: 1.05rem;
+  color: var(--ifm-color-emphasis-600);
+}
