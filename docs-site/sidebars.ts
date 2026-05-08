@@ -23,6 +23,8 @@ const sidebars: SidebarsConfig = {
         'guide/analytics',
         'guide/timesheets',
         'guide/settings',
+        'guide/client-portals',
+        'guide/intake-forms',
       ],
     },
     {

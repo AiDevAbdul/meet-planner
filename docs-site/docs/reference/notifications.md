@@ -91,6 +91,23 @@ These are scheduled email summaries. They are opt-in and can be toggled in **Set
 
 ---
 
+## Push Notifications (PWA)
+
+MeetPlanner is a Progressive Web App (PWA). When you enable push notifications in **Settings → Notifications**, your browser receives push alerts even when the app tab is closed.
+
+Push notifications fire for the same triggers as in-app notifications:
+- Task assigned to you
+- Task overdue
+- Task due today
+- Meeting starting in 1 hour
+- Triage tasks waiting (Managers/Admins only)
+
+**Requirements:** Chrome, Edge, Firefox, or Safari 16.4+. The toggle only appears when your browser supports push notifications.
+
+**Manage subscriptions:** Each browser/device is registered independently. Toggling push off on your laptop does not affect your phone.
+
+---
+
 ## Managing Notifications
 
 To view all notifications, click the **bell icon** in the top navigation bar.

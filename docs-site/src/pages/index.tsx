@@ -101,7 +101,15 @@ export default function Home(): JSX.Element {
         </div>
         <div className="feature-item">
           <div className="feature-item-title">Timesheets</div>
-          <div className="feature-item-desc">Log time per task, set hourly rates, and generate project billing reports.</div>
+          <div className="feature-item-desc">Log time per task, use the live timer, set hourly rates, and generate billing reports.</div>
+        </div>
+        <div className="feature-item">
+          <div className="feature-item-title">Client Portals</div>
+          <div className="feature-item-desc">Share project status, milestones, and documents with clients via a branded public portal.</div>
+        </div>
+        <div className="feature-item">
+          <div className="feature-item-title">Intake Forms</div>
+          <div className="feature-item-desc">Collect requests from external users via shareable public forms that route into Triage.</div>
         </div>
       </div>
 

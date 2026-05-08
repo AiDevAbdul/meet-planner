@@ -119,6 +119,20 @@ Log how long you spent on a task:
 
 Time entries feed into [Timesheets](/docs/guide/timesheets).
 
+### Task Timer
+
+For real-time tracking, use the built-in timer instead of logging manually:
+
+1. Open the task detail panel.
+2. Click the **Start Timer** button (clock icon, top of the panel).
+3. The timer starts and a live pill appears in the **top navigation bar** showing the elapsed time and task title.
+4. Click **Stop** in the topbar pill (or reopen the task and click **Stop Timer**) when you're done.
+5. A time entry is created automatically with the elapsed minutes.
+
+:::tip
+Only one timer can run at a time. Starting a timer on a second task stops the first and logs its time automatically.
+:::
+
 ### Goal Links
 
 Connect this task to a company or team OKR:

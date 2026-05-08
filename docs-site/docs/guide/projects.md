@@ -172,8 +172,12 @@ The field appears in the task detail panel for every task in this project.
 
 Standups can be enabled per project. When enabled:
 
-1. Team members receive a daily prompt (Slack / email): *"What did you do yesterday? What are you doing today? Any blockers?"*
+1. Team members receive a daily prompt via email: *"What did you do yesterday? What are you doing today? Any blockers?"*
 2. Responses are compiled automatically.
 3. A summary is posted to the project's channel each morning.
 
 To enable standups, open the project **Overview** and toggle **Enable Standups**.
+
+:::note
+Standup prompts and summaries are delivered via **in-app notifications and email** — not Slack.
+:::
