@@ -295,13 +295,15 @@ Uses `POST /api/users` (admin-only) which sets any role and department.
 - Output: structured JSON with title, summary, decisions, attendees, tasks[]
 
 ### Chat → Task Extraction
-- Claude only, lightweight prompt (512 max tokens)
+- Primary: Claude (`claude-sonnet-4-6`), lightweight prompt (512 max tokens)
+- Fallback: Gemini (`gemini-1.5-flash`) if `ANTHROPIC_API_KEY` not set
 - Input: single message content
 - Output: `{ title, priority, description }`
 - Task created at `triage` status for manager review
 
 ### AI Chat (Command Palette)
-- Claude with context: current tasks list + recent meetings + team members
+- Primary: Claude with context: current tasks list + recent meetings + team members
+- Fallback: Gemini (`gemini-1.5-flash`) if `ANTHROPIC_API_KEY` not set
 - Used for natural language queries ("Who has the most tasks?", "What was decided in Friday's meeting?")
 
 ---
@@ -311,7 +313,10 @@ Uses `POST /api/users` (admin-only) which sets any role and department.
 ```bash
 # Auth (required)
 AUTH_SECRET=                       # random base64 string — sign JWTs
+NEXTAUTH_SECRET=                   # same value as AUTH_SECRET (NextAuth alias)
+NEXTAUTH_URL=                      # set to production URL on Vercel (e.g. https://ducker-meetplanner.vercel.app)
 ALLOWED_EMAIL_DOMAIN=duckercreative.com
+NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN=duckercreative.com
 
 # Google OAuth (optional — credentials auth works without these)
 GOOGLE_CLIENT_ID=
@@ -319,8 +324,8 @@ GOOGLE_CLIENT_SECRET=
 GOOGLE_REFRESH_TOKEN=              # for Gmail API server-side calls
 
 # AI (at least one required for meeting extraction)
-ANTHROPIC_API_KEY=                 # preferred
-GEMINI_API_KEY=                    # fallback
+ANTHROPIC_API_KEY=                 # preferred — all routes fall back to Gemini if absent
+GEMINI_API_KEY=                    # fallback for all AI routes
 
 # Database
 DATABASE_URL=                      # Neon Postgres connection string
@@ -330,9 +335,33 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 
-# Gmail webhook
-GMAIL_WEBHOOK_SECRET=
+# Web Push (PWA notifications)
+NEXT_PUBLIC_VAPID_PUBLIC_KEY=      # generate with: npx web-push generate-vapid-keys
+VAPID_PRIVATE_KEY=
+VAPID_EMAIL=                       # mailto:your@email.com
+
+# Webhooks & cron security
+GMAIL_WEBHOOK_SECRET=              # random hex — validate Gmail push payloads
+CRON_SECRET=                       # random hex — passed as Bearer token in cron requests
+GITHUB_WEBHOOK_SECRET=             # random hex — validate GitHub webhook payloads
+
+# GitHub integration (optional)
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
 ```
 
-> **Vercel note**: Do NOT set `NEXTAUTH_URL` — `trustHost: true` is configured in `auth.ts`
-> so Next.js auto-detects the deployment URL from request headers.
+---
+
+## CI/CD
+
+Deployments are automated via **GitHub Actions** (`.github/workflows/deploy.yml`).
+
+| Trigger | Target |
+|---------|--------|
+| Push to `main` | Vercel Production |
+| Pull request to `main` | Vercel Preview |
+
+The workflow runs `vercel build --prod` then `vercel deploy --prebuilt --prod` using
+three repo secrets: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`.
+
+> The Vercel GitHub App is not used — deployment is handled entirely by this workflow.

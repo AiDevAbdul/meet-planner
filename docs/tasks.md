@@ -17,7 +17,7 @@
 - `NewMeetingRequestModal` — title, datetime, duration, location, agenda, attendee multi-select
 - Approve: creates Google Calendar event via `googleapis`, sends invites, marks `sent`
 - Reject: stores review note, notifies requester in-app
-- Vercel Cron at `/api/cron/meeting-reminders` (every 15 min) — sends reminders 30 min before meetings
+- Vercel Cron at `/api/cron/meeting-reminders` (daily at 7 AM) — sends reminders for upcoming meetings (changed from every 15 min to comply with Vercel Hobby plan limits)
 - Sidebar updated with "Meeting Requests" nav item (CalendarClock icon)
 - Google OAuth scopes extended: `calendar` + `gmail.send`
 
