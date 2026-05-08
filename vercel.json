@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/meeting-reminders",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 7 * * *"
     },
     {
       "path": "/api/cron/milestone-reminders",
@@ -22,7 +22,7 @@
     },
     {
       "path": "/api/cron/automations",
-      "schedule": "0 * * * *"
+      "schedule": "0 10 * * *"
     },
     {
       "path": "/api/cron/project-risk",
